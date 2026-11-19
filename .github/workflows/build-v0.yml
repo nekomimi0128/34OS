@@ -1,0 +1,25 @@
+name: build-v0
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "build-ci.sh"
+      - ".github/workflows/build-v0.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build 34OS v0 ISO
+        run: bash build-ci.sh
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: 34os-v0-iso
+          path: 34os-v0.iso
+          if-no-files-found: error
