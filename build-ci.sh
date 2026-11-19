@@ -85,7 +85,7 @@ cat > "$ISODIR/boot/grub/grub.cfg" <<'EOF'
 set default=0
 set timeout=5
 menuentry "34OS v0 (CLI live)" {
-  linux /casper/vmlinuz boot=live hostname=34os locales=ja_JP.UTF-8 quiet ---
+  linux /casper/vmlinuz boot=live live-media-path=/casper hostname=34os locales=ja_JP.UTF-8 quiet ---
   initrd /casper/initrd.img
 }
 EOF
