@@ -19,6 +19,7 @@ sudo apt-get update
 sudo apt-get install -y debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools
 
 # 1) base system (minbase)
+mkdir -p "$WORK"
 sudo rm -rf "$ROOTFS"
 sudo debootstrap --variant=minbase "$SUITE" "$ROOTFS" "$MIRROR"
 
@@ -69,7 +70,8 @@ echo "--- rootfs size (uncompressed) ---"
 sudo du -sh "$ROOTFS" || true
 
 # 4) squashfs + kernel/initrd for live boot
-mkdir -p "$ISODIR/casper" "$ISODIR/boot/grub"
+sudo mkdir -p "$ISODIR/casper" "$ISODIR/boot/grub"
+sudo chown -R "$(id -u):$(id -g)" "$ISODIR"
 sudo rm -f "$ISODIR/casper/filesystem.squashfs"
 sudo mksquashfs "$ROOTFS" "$ISODIR/casper/filesystem.squashfs" -comp xz -noappend -wildcards -e "boot/vmlinuz-*" "boot/initrd.img-*"
 
