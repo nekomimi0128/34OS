@@ -1,25 +1,25 @@
-name: build-v1.2
+name: build-v2
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "build-v1.2-ci.sh"
-      - ".github/workflows/build-v1.2.yml"
+      - "build-v2-ci.sh"
+      - ".github/workflows/build-v2.yml"
 
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build 34OS v1.2 ISO
-        run: bash build-v1.2-ci.sh
+      - name: Build 34OS v2 ISO
+        run: bash build-v2-ci.sh
 
       - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
-          name: 34os-v1.2-iso
-          path: 34os-v1.2.iso
+          name: 34os-v2-iso
+          path: 34os-v2.iso
           if-no-files-found: error
