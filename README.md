@@ -44,26 +44,31 @@ mkdir / rm / mv / cp / grep ...
 | `img` | 画像を表示する（feh） |
 | `play` | 動画を再生する（mpv） |
 | `help` | 使えるコマンドの一覧と説明を出す |
+| `install34` | ライブセッションから HDD/SSD へインストールする（全消し／デュアルブート） |
 
 ※ システム内部が使うコマンドは消さない（消すと起動や apt が壊れるため）。
 「見せない」のは PATH の制御で実現する。
 
 ## ステータス
 
-開発中。v1 が dynabook（初代 Core i5）で実機起動に成功。現在 v1.1（コンソールの日本語表示・日本語キー配列・各種修正）を製作中。ISO サイズは 482MB（目標は 300MB 台）。
+開発中。v1 が dynabook（初代 Core i5）で実機起動に成功。v1.1 は完成し、QEMU 検証オールクリア（コンソールの日本語表示・日本語キー配列・man 修正など）。現在の最新版は **v1.2**：インストーラ `install34` を搭載し、ライブ起動から HDD/SSD へのインストール（全消し／デュアルブート）が可能に。CI ビルド成功済み、ISO サイズは約 500MB（目標は 300MB 台）。インストールの実機テスト報告は募集中。
 
 ## ロードマップ
 
 - **v0**: CLIのみのライブISO（起動確認とサイズ測定）
 - **v1**: 独自コマンド（gogui / gocli / browser / img / play / help）の実装
-- **v2**: Fluxbox + Firefox + feh / mpv + Mozc の GUI パック（ターミナルは sakura）
+- **v1.1**: v1 の完成形（コンソール日本語表示・日本語キー配列・man 修正・WTFPL 文面）
+- **v1.2**: インストーラ（install34）搭載。全消し／デュアルブートの2モード、UEFI／BIOS 両対応
+- **v2**: Fluxbox + Firefox + feh / mpv + Mozc の GUI パック（ターミナルは sakura、標準壁紙は蒸気機関車の線画）
 - その先: 自宅サーバーへのインストール、DWService でのリモート運用
 
 ## ビルド
 
 ```bash
-./build-v0.sh
+./build-v1.2.sh
 ```
+
+CI 版は `build-v1.2-ci.sh`。GitHub Actions で自動ビルドされ、ISO は Artifacts からダウンロードできる。
 
 Ubuntu 24.04 上で debootstrap / squashfs-tools / grub / xorriso を使って ISO を生成する。
 
@@ -72,8 +77,8 @@ Ubuntu 24.04 上で debootstrap / squashfs-tools / grub / xorriso を使って I
 個人プロジェクトですが、協力者は歓迎します。特に募集中なのはこのあたり：
 
 - **英語ロケールの追加**（現在は日本語のみ。方針として英語は有志に任せています）
-- **実機テスト**：手元の古い PC で起動してみた報告（動いた／動かなかった、機種名があると助かります）
-- **軽量化**：initrd 再生成による ISO サイズ削減（現在 482MB → 目標 300MB 台）
+- **実機テスト**：手元の古い PC で起動・インストールしてみた報告（動いた／動かなかった、機種名があると助かります）
+- **軽量化**：initrd 再生成による ISO サイズ削減（現在 約500MB → 目標 300MB 台。initrd 単体で 112MB あり）
 
 進め方は fork → Pull Request で。コードでなくても、Issue での相談・バグ報告だけでも歓迎です。
 
