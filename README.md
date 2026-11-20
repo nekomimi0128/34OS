@@ -3,7 +3,7 @@
 > It's very hyper ultra super mega light-weight OS
 
 バカ軽いOSを目指して作っている、個人専用の Linux ディストリビューション（になる予定のもの）。
-名前の由来は私の第3のハンドルである「サンヨン = 3・4」。
+名前の由来は「サンヨン = 3・4」。
 
 ## コンセプト
 
@@ -23,7 +23,7 @@
 | ロケール | **日本語（ja_JP.UTF-8）のみ**。英語は有志に任せる |
 | 日本語入力 | Mozc 標準搭載（GUI側、fcitx5-mozc） |
 | GUI | Fluxbox（必要な時だけ起動） |
-| ブラウザ | Firefox か Chromium |
+| ブラウザ | Firefox（Mozilla公式 .deb。snap は使わない） |
 
 ## コマンド
 
@@ -50,13 +50,13 @@ mkdir / rm / mv / cp / grep ...
 
 ## ステータス
 
-開発中。現在 v0（CLIのみのライブISO試作）をビルド中。
+開発中。v1 が dynabook（初代 Core i5）で実機起動に成功。現在 v1.1（コンソールの日本語表示・日本語キー配列・各種修正）を製作中。ISO サイズは 482MB（目標は 300MB 台）。
 
 ## ロードマップ
 
 - **v0**: CLIのみのライブISO（起動確認とサイズ測定）
 - **v1**: 独自コマンド（gogui / gocli / browser / img / play / help）の実装
-- **v2**: Fluxbox + ブラウザ + feh / mpv + Mozc の GUI パック
+- **v2**: Fluxbox + Firefox + feh / mpv + Mozc の GUI パック（ターミナルは sakura）
 - その先: 自宅サーバーへのインストール、DWService でのリモート運用
 
 ## ビルド
@@ -66,6 +66,20 @@ mkdir / rm / mv / cp / grep ...
 ```
 
 Ubuntu 24.04 上で debootstrap / squashfs-tools / grub / xorriso を使って ISO を生成する。
+
+## 協力者募集（PR歓迎）
+
+個人プロジェクトですが、協力者は歓迎します。特に募集中なのはこのあたり：
+
+- **英語ロケールの追加**（現在は日本語のみ。方針として英語は有志に任せています）
+- **実機テスト**：手元の古い PC で起動してみた報告（動いた／動かなかった、機種名があると助かります）
+- **軽量化**：initrd 再生成による ISO サイズ削減（現在 482MB → 目標 300MB 台）
+
+進め方は fork → Pull Request で。コードでなくても、Issue での相談・バグ報告だけでも歓迎です。
+
+ライセンス：34OS 本体は WTFPL（コピーレフト条項付き）です。改変版を配布する場合は、同じ条件で公開してください。©MximizR/Nekomimi
+
+> Contributors welcome! Especially looking for: English localization, real-hardware test reports, and ISO size reduction. Fork & PR. License: WTFPL (copyleft variant) — if you distribute a modified version, publish it under the same terms.
 
 ## 詳細
 
