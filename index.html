@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>34OS — It's very hyper ultra super mega light-weight OS</title>
+<meta name="description" content="34OS は Puppy Linux 以下の軽さを目指す、Ubuntu 互換の個人開発 Linux ディストリビューション。日本語専用、インストーラ搭載。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚂</text></svg>">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="34OS">
+<meta property="og:title" content="34OS — It's very hyper ultra super mega light-weight OS">
+<meta property="og:description" content="Puppy Linux 以下の軽さを目指す、Ubuntu 互換の個人開発 Linux。日本語専用、インストーラ搭載。">
+<meta name="twitter:card" content="summary">
+<style>
+  :root {
+    --bg: #070a12;
+    --panel: rgba(16, 22, 34, .85);
+    --panel2: rgba(23, 32, 48, .9);
+    --line: #243145;
+    --text: #eef2f7;
+    --sub: #93a3b5;
+    --accent: #5ec4e6;
+    --accent2: #e6c87a;
+    --green: #57d977;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    line-height: 1.75;
+    overflow-x: hidden;
+  }
+  #stars { position: fixed; inset: 0; z-index: -2; }
+  #glow {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(ellipse 70% 45% at 50% -5%, rgba(94,196,230,.16), transparent);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(7,10,18,.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav {
+    max-width: 920px; margin: 0 auto; padding: .65rem 1rem;
+    display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap;
+  }
+  .nav .logo { font-weight: 700; letter-spacing: .04em; color: var(--text); display: flex; align-items: center; gap: .5rem; }
+  .nav .onair {
+    font-size: .68rem; letter-spacing: .18em; color: #0a0f16;
+    background: var(--green); border-radius: 4px; padding: .05rem .45rem; font-weight: 700;
+    animation: blink 2.4s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+  .nav nav { display: flex; gap: 1rem; font-size: .9rem; flex-wrap: wrap; }
+  .nav nav a { color: var(--sub); }
+  .nav nav a:hover { color: var(--text); text-decoration: none; }
+  .nav .clock { margin-left: auto; color: var(--sub); font-size: .85rem; font-variant-numeric: tabular-nums; }
+
+  .hero { text-align: center; padding: 4.2rem 1rem 2.6rem; }
+  .hero .freq { color: var(--sub); letter-spacing: .3em; font-size: .8rem; margin: 0; }
+  .hero h1 { font-size: 3.4rem; margin: .6rem 0 0; letter-spacing: .08em; line-height: 1.2; }
+  .hero .call {
+    display: inline-block; margin-top: 1.1rem;
+    border: 1px solid var(--accent2); color: var(--accent2);
+    border-radius: 999px; padding: .15rem 1.1rem;
+    font-size: 1rem; letter-spacing: .35em; font-weight: 700;
+  }
+  .hero .term {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: var(--accent); letter-spacing: .08em; min-height: 1.6em; margin: .9rem 0 0;
+  }
+  .hero .tag { color: var(--sub); margin: 1.2rem auto 0; max-width: 560px; }
+
+  main { max-width: 920px; margin: 0 auto; padding: 1rem 1rem 3rem; }
+  section { margin-bottom: 3.2rem; }
+  .fade { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+  .fade.on { opacity: 1; transform: none; }
+  h2 {
+    font-size: 1.25rem; margin: 0 0 1.1rem; letter-spacing: .12em;
+    display: flex; align-items: center; gap: .8rem;
+  }
+  h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+  h2 .en { color: var(--accent2); font-size: .8rem; letter-spacing: .3em; font-weight: 400; }
+  p { margin: .5rem 0; }
+  .sub { color: var(--sub); }
+
+  .status {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 1.1rem 1.3rem;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .7rem 1.5rem;
+    font-size: .95rem;
+  }
+  .status .k { color: var(--sub); font-size: .75rem; letter-spacing: .12em; }
+  .status .v { font-variant-numeric: tabular-nums; }
+  .dot { display: inline-block; width: .55em; height: .55em; border-radius: 50%; background: var(--green); margin-right: .4em; box-shadow: 0 0 9px var(--green); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 1.2rem 1.3rem; transition: transform .25s ease, border-color .25s ease;
+  }
+  .card:hover { transform: translateY(-4px); border-color: var(--accent); }
+  .card .icon { font-size: 1.7rem; line-height: 1; }
+  .card h3 { margin: .6rem 0 .35rem; font-size: 1.05rem; }
+  .card p { color: var(--sub); font-size: .92rem; margin: 0; }
+  .card .big { font-size: 1.3rem; color: var(--accent2); letter-spacing: .12em; font-weight: 700; }
+
+  .logbook {
+    width: 100%; border-collapse: collapse; font-size: .93rem;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  }
+  .logbook th, .logbook td { padding: .65rem 1rem; text-align: left; border-bottom: 1px dashed var(--line); vertical-align: top; }
+  .logbook tr:last-child td { border-bottom: none; }
+  .logbook th { color: var(--sub); font-size: .75rem; letter-spacing: .12em; font-weight: 400; background: var(--panel2); }
+  .logbook td.cmd { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--accent2); white-space: nowrap; }
+  .logbook time { color: var(--accent2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .links { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+  .link-card {
+    display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 1.1rem 1.3rem; color: var(--text); transition: border-color .25s ease, transform .25s ease;
+  }
+  .link-card:hover { border-color: var(--accent2); text-decoration: none; transform: translateY(-3px); }
+  .link-card .name { font-weight: 700; }
+  .link-card .desc { color: var(--sub); font-size: .88rem; }
+  .link-card .arr { float: right; color: var(--sub); }
+
+  footer { border-top: 1px solid var(--line); padding: 1.6rem 1rem 2.2rem; text-align: center; color: var(--sub); font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+<div id="glow"></div>
+
+<header>
+  <div class="nav">
+    <a class="logo" href="#">34OS <span class="onair">v1.2</span></a>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#features">Features</a>
+      <a href="#commands">Commands</a>
+      <a href="#download">Download</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#links">Links</a>
+    </nav>
+    <div class="clock" id="clock">--:--:-- JST</div>
+  </div>
+</header>
+
+<div class="hero">
+  <p class="freq">— IT'S VERY HYPER ULTRA SUPER MEGA LIGHT-WEIGHT OS —</p>
+  <h1>34OS</h1>
+  <div><span class="call">v1.2</span></div>
+  <p class="term" id="term"></p>
+  <p class="tag">Puppy Linux 以下の軽さを目指す、Ubuntu 互換の個人開発 Linux ディストリビューション。<br>名前の由来は「サンヨン = 3・4」。</p>
+</div>
+
+<main>
+  <section class="fade">
+    <h2>現在の状態 <span class="en">STATUS</span></h2>
+    <div class="status">
+      <div><div class="k">STATUS</div><div class="v"><span class="dot"></span>開発中</div></div>
+      <div><div class="k">LATEST</div><div class="v">v1.2（インストーラ搭載）</div></div>
+      <div><div class="k">ISO SIZE</div><div class="v">約 500 MB</div></div>
+      <div><div class="k">BASE</div><div class="v">Ubuntu 24.04 LTS</div></div>
+    </div>
+  </section>
+
+  <section id="about" class="fade">
+    <h2>34OS について <span class="en">ABOUT</span></h2>
+    <p>34OS は、バカ軽い OS を目指して作っている個人専用の Linux ディストリビューション（になる予定のもの）です。</p>
+    <p>コンセプトは「<strong>Puppy Linux 以下の軽さ</strong>」と「<strong>コマンドの使い心地は Ubuntu と同じ</strong>」の両立。軽さはコマンドを削って稼ぐのではなく、ロケール・ドキュメント・ファームウェアを削ぎ落とし、ファイルシステムを SquashFS で圧縮して稼ぎます。使う人が使うものだけを表に出し、余計なものは裏に隠すのが方針です。</p>
+    <p>ロケールは<strong>日本語（ja_JP.UTF-8）のみ</strong>。英語は有志に任せることにしています。v1 は dynabook（初代 Core i5）での実機起動に成功済みです。</p>
+  </section>
+
+  <section id="features" class="fade">
+    <h2>特徴 <span class="en">FEATURES</span></h2>
+    <div class="cards">
+      <div class="card">
+        <div class="icon">🪶</div>
+        <h3>軽さ</h3>
+        <p class="big">約 500 MB</p>
+        <p>ISO サイズは約 500MB、目標は 300MB 台。ロケール・ドキュメント・ファームウェアを削ぎ落として軽くしています。</p>
+      </div>
+      <div class="card">
+        <div class="icon">🐧</div>
+        <h3>Ubuntu 互換</h3>
+        <p>土台は Ubuntu 24.04 LTS の最小構成。GNU coreutils + bash + apt で、コマンドの使い心地は Ubuntu そのままです。</p>
+      </div>
+      <div class="card">
+        <div class="icon">🇯🇵</div>
+        <h3>日本語専用</h3>
+        <p>ロケールは ja_JP.UTF-8 のみ。コンソールでも fbterm で日本語が表示でき、キーボードは jp106 配列。日本語入力は Mozc（fcitx5-mozc）を標準搭載予定です。</p>
+      </div>
+      <div class="card">
+        <div class="icon">💿</div>
+        <h3>インストーラ搭載</h3>
+        <p>v1.2 から <span style="font-family: ui-monospace, monospace;">install34</span> を搭載。ライブ起動から HDD/SSD へ、全消し／デュアルブートの2モードでインストールできます。UEFI／BIOS 両対応。</p>
+      </div>
+      <div class="card">
+        <div class="icon">⌨️</div>
+        <h3>独自コマンド</h3>
+        <p>gogui / gocli / browser / img / play / help など、日常コマンドを厳選して表に出します。内部コマンドは消さず、PATH の制御で「見せない」を実現しています。</p>
+      </div>
+      <div class="card">
+        <div class="icon">📜</div>
+        <h3>ライセンス</h3>
+        <p>34OS 本体は WTFPL（コピーレフト条項付き）。改変版を配布する場合は、同じ条件で公開してください。©MximizR/Nekomimi</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="commands" class="fade">
+    <h2>独自コマンド <span class="en">COMMANDS</span></h2>
+    <table class="logbook">
+      <tr><th>COMMAND</th><th>説明</th></tr>
+      <tr><td class="cmd">gogui</td><td>GUI（Fluxbox）を起動する ※v2 で本格搭載</td></tr>
+      <tr><td class="cmd">gocli</td><td>GUI を落として CLI に戻る</td></tr>
+      <tr><td class="cmd">browser</td><td>ブラウザ（Firefox）を開く</td></tr>
+      <tr><td class="cmd">img</td><td>画像を表示する（feh）</td></tr>
+      <tr><td class="cmd">play</td><td>動画を再生する（mpv）</td></tr>
+      <tr><td class="cmd">help</td><td>使えるコマンドの一覧と説明を出す</td></tr>
+      <tr><td class="cmd">install34</td><td>ライブセッションから HDD/SSD へインストールする（全消し／デュアルブート）</td></tr>
+    </table>
+    <p class="sub">日常コマンド（cd / ls / cat / man / nano / sudo / apt / mkdir / rm / mv / cp / grep など）も厳選して表に出しています。</p>
+  </section>
+
+  <section id="download" class="fade">
+    <h2>ダウンロード <span class="en">DOWNLOAD</span></h2>
+    <div class="links">
+      <a class="link-card" href="https://github.com/nekomimi0128/34OS" target="_blank" rel="noopener">
+        <span class="arr">→</span>
+        <div class="name">GitHub リポジトリ</div>
+        <div class="desc">ソース（ビルドスクリプト）と詳細仕様はこちら。ISO は Actions の Artifacts から取得できます（GitHub ログインが必要）。</div>
+      </a>
+      <a class="link-card" href="https://github.com/nekomimi0128/34OS/actions" target="_blank" rel="noopener">
+        <span class="arr">→</span>
+        <div class="name">GitHub Actions</div>
+        <div class="desc">最新の成功したランから 34os-v1.2-iso をダウンロード。USB へは Rufus の DD モードで書き込んでください。</div>
+      </a>
+    </div>
+    <p class="sub">動作保証はありません。インストール（特に全消しモード）は自己責任でお願いします。</p>
+  </section>
+
+  <section id="roadmap" class="fade">
+    <h2>ロードマップ <span class="en">ROADMAP</span></h2>
+    <table class="logbook">
+      <tr><th>VERSION</th><th>内容</th><th>状態</th></tr>
+      <tr><td class="cmd">v0</td><td>CLI のみのライブ ISO（起動確認とサイズ測定）</td><td>完了</td></tr>
+      <tr><td class="cmd">v1</td><td>独自コマンドの実装。dynabook（初代 Core i5）で実機起動成功</td><td>完了</td></tr>
+      <tr><td class="cmd">v1.1</td><td>v1 の完成形（コンソール日本語表示・日本語キー配列・man 修正・WTFPL 文面）</td><td>完了</td></tr>
+      <tr><td class="cmd">v1.2</td><td>インストーラ（install34）搭載。全消し／デュアルブート、UEFI／BIOS 両対応</td><td>完了</td></tr>
+      <tr><td class="cmd">v2</td><td>Fluxbox + Firefox + sakura + Mozc の GUI パック（標準壁紙は蒸気機関車の線画）</td><td>予定</td></tr>
+    </table>
+  </section>
+
+  <section class="fade">
+    <h2>協力者募集 <span class="en">CONTRIBUTORS WANTED</span></h2>
+    <p>個人プロジェクトですが、協力者は歓迎します。特に募集中なのはこのあたりです。</p>
+    <div class="cards">
+      <div class="card">
+        <div class="icon">🌐</div>
+        <h3>英語ロケールの追加</h3>
+        <p>現在は日本語のみ。方針として英語は有志に任せています。</p>
+      </div>
+      <div class="card">
+        <div class="icon">🧪</div>
+        <h3>実機テスト</h3>
+        <p>手元の古い PC で起動・インストールしてみた報告（動いた／動かなかった、機種名があると助かります）。</p>
+      </div>
+      <div class="card">
+        <div class="icon">📉</div>
+        <h3>軽量化</h3>
+        <p>initrd 再生成による ISO サイズ削減（現在 約500MB → 目標 300MB 台）。</p>
+      </div>
+    </div>
+    <p>進め方は fork → Pull Request で。コードでなくても、Issue での相談・バグ報告だけでも歓迎です。</p>
+  </section>
+
+  <section id="links" class="fade">
+    <h2>リンク <span class="en">LINKS</span></h2>
+    <div class="links">
+      <a class="link-card" href="https://github.com/nekomimi0128/34OS" target="_blank" rel="noopener">
+        <span class="arr">→</span>
+        <div class="name">GitHub — nekomimi0128/34OS</div>
+        <div class="desc">開発の本拠地。ビルドスクリプト、SPEC、Issue はこちら。</div>
+      </a>
+      <a class="link-card" href="https://nekomimi0128.com" target="_blank" rel="noopener">
+        <span class="arr">→</span>
+        <div class="name">nekomimi0128.com</div>
+        <div class="desc">作者（ねこみみ）の個人サイト。アマチュア無線 JF6GXS、鉄道、放送、VRChat など。</div>
+      </a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>34OS — ©MximizR/Nekomimi. 本体は WTFPL（コピーレフト条項付き）で公開されています。</p>
+  <p>同梱プログラムのライセンスは各自のものを継承します。</p>
+</footer>
+
+<script>
+  // starfield (same as nekomimi0128.com)
+  (function () {
+    var c = document.getElementById('stars'), x = c.getContext('2d'), stars = [], W, H;
+    function resize() {
+      W = c.width = innerWidth; H = c.height = innerHeight;
+      stars = [];
+      for (var i = 0; i < 130; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.3 + .2, p: Math.random() * Math.PI * 2 });
+    }
+    function tick(t) {
+      x.clearRect(0, 0, W, H);
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i], a = .35 + .65 * Math.abs(Math.sin(t / 1400 + s.p));
+        x.globalAlpha = a; x.fillStyle = '#cfe8ff';
+        x.beginPath(); x.arc(s.x, s.y, s.r, 0, Math.PI * 2); x.fill();
+      }
+      x.globalAlpha = 1;
+      requestAnimationFrame(tick);
+    }
+    addEventListener('resize', resize); resize(); requestAnimationFrame(tick);
+  })();
+
+  // JST clock
+  (function () {
+    var el = document.getElementById('clock');
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function upd() {
+      var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+      el.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + ' JST';
+    }
+    upd(); setInterval(upd, 1000);
+  })();
+
+  // hero terminal typing
+  (function () {
+    var el = document.getElementById('term');
+    var lines = ['$ help', 'user@34os: ~$', '34OS v1.2 — ようこそ'];
+    var li = 0, ci = 0, del = false;
+    function step() {
+      var s = lines[li];
+      if (!del) {
+        ci++;
+        if (ci >= s.length) { del = true; setTimeout(step, 1600); el.textContent = s; return; }
+      } else {
+        ci--;
+        if (ci <= 0) { del = false; li = (li + 1) % lines.length; }
+      }
+      el.textContent = s.slice(0, ci);
+      setTimeout(step, del ? 30 : 75);
+    }
+    step();
+  })();
+
+  // fade-in on scroll
+  (function () {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } });
+    }, { threshold: .08 });
+    document.querySelectorAll('.fade').forEach(function (s) { io.observe(s); });
+  })();
+</script>
+</body>
+</html>
