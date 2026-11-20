@@ -85,8 +85,8 @@ EOS
 
 sudo tee "$ROOTFS/usr/local/bin/gogui" >/dev/null <<'EOS'
 #!/bin/bash
-if command -v fluxbox >/dev/null 2>&1; then
-  exec startx /usr/bin/fluxbox -- :0
+if [ -x /usr/bin/fluxbox ] && [ -x /usr/bin/startx ]; then
+  exec /usr/bin/startx /usr/bin/fluxbox -- :0
 fi
 echo "GUIパックはまだ入っていません（v2で追加されます）。いまはCLIで操作してください。"
 EOS
@@ -103,20 +103,20 @@ EOS
 sudo tee "$ROOTFS/usr/local/bin/browser" >/dev/null <<'EOS'
 #!/bin/bash
 for b in firefox chromium chromium-browser google-chrome; do
-  if command -v "$b" >/dev/null 2>&1; then exec "$b" "$@"; fi
+  if [ -x "/usr/bin/$b" ]; then exec "/usr/bin/$b" "$@"; fi
 done
 echo "ブラウザはまだ入っていません（GUIパック＝v2で追加されます）。"
 EOS
 
 sudo tee "$ROOTFS/usr/local/bin/img" >/dev/null <<'EOS'
 #!/bin/bash
-if command -v feh >/dev/null 2>&1; then exec feh "$@"; fi
+if [ -x /usr/bin/feh ]; then exec /usr/bin/feh "$@"; fi
 echo "画像ビューア（feh）はまだ入っていません（GUIパック＝v2で追加されます）。"
 EOS
 
 sudo tee "$ROOTFS/usr/local/bin/play" >/dev/null <<'EOS'
 #!/bin/bash
-if command -v mpv >/dev/null 2>&1; then exec mpv "$@"; fi
+if [ -x /usr/bin/mpv ]; then exec /usr/bin/mpv "$@"; fi
 echo "動画プレイヤー（mpv）はまだ入っていません（GUIパック＝v2で追加されます）。"
 EOS
 
