@@ -14,12 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build 34OS v1 ISO
+      - name: Build 34OS v1.1 ISO
         run: bash build-v1-ci.sh
 
       - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
-          name: 34os-v1-iso
-          path: 34os-v1.iso
+          name: 34os-v1.1-iso
+          path: 34os-v1.1.iso
           if-no-files-found: error
