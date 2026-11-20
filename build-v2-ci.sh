@@ -43,6 +43,13 @@ if [ -f "$ROOTFS/etc/lsb-release" ]; then
   sudo sed -i 's/^DISTRIB_ID=.*/DISTRIB_ID=34OS/; s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="34OS v2"/' "$ROOTFS/etc/lsb-release"
 fi
 
+# v2: ca-certificates first: the Mozilla repo is HTTPS-only and a fresh
+# minbase chroot cannot verify TLS yet. Without this, apt silently skips
+# the Mozilla repo and Ubuntu's snap-stub firefox gets installed instead
+# (this killed the first v2 CI run at the langpack download).
+in_chroot apt-get update
+in_chroot apt-get install -y --no-install-recommends ca-certificates
+
 # v2: Mozilla official APT repository (Firefox .deb, no snap)
 sudo mkdir -p "$ROOTFS/etc/apt/keyrings"
 curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee "$ROOTFS/etc/apt/keyrings/packages.mozilla.org.asc" >/dev/null
@@ -68,7 +75,8 @@ in_chroot apt-get install -y --no-install-recommends \
 
 # v2: Firefox Japanese langpack. The Mozilla APT repo ships no l10n debs,
 # so bundle the official langpack XPI matching the installed Firefox version.
-FFVER=$(in_chroot dpkg-query -W -f='${Version}' firefox | sed 's/~.*//')
+FFVER=$(in_chroot dpkg-query -W -f='${Version}' firefox | sed -e 's/^[^:]*://' -e 's/~.*//' -e 's/-.*//')
+case "$FFVER" in *snap*) echo "ERROR: Ubuntu snap-stub firefox installed; Mozilla repo/pin failed" >&2; exit 1;; esac
 echo "Firefox version for langpack: $FFVER"
 sudo mkdir -p "$ROOTFS/usr/lib/firefox/browser/extensions"
 curl -fsSL "https://releases.mozilla.org/pub/firefox/releases/${FFVER}/linux-x86_64/xpi/ja.xpi" | sudo tee "$ROOTFS/usr/lib/firefox/browser/extensions/langpack-ja@firefox.mozilla.org.xpi" >/dev/null
