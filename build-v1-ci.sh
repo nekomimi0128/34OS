@@ -10,7 +10,7 @@ MIRROR="${MIRROR:-http://archive.ubuntu.com/ubuntu/}"
 WORK="$PWD/build"
 ROOTFS=$WORK/rootfs
 ISODIR=$WORK/iso
-OUT="$PWD/34os-v1.iso"
+OUT="$PWD/34os-v1.1.iso"
 
 echo "=== 34OS v1 CI build started: $(date -Is) ==="
 
@@ -36,18 +36,18 @@ echo "34os" | sudo tee "$ROOTFS/etc/hostname" >/dev/null
 
 # v1 branding: show 34OS, not Ubuntu (login banner + release info)
 sudo tee "$ROOTFS/etc/issue" >/dev/null <<'EOS'
-34OS v1 \n \l
+34OS v1.1 \n \l
 EOS
-sudo sed -i 's/^NAME=.*/NAME="34OS"/; s/^PRETTY_NAME=.*/PRETTY_NAME="34OS v1"/' "$ROOTFS/etc/os-release"
+sudo sed -i 's/^NAME=.*/NAME="34OS"/; s/^PRETTY_NAME=.*/PRETTY_NAME="34OS v1.1"/' "$ROOTFS/etc/os-release"
 if [ -f "$ROOTFS/etc/lsb-release" ]; then
-  sudo sed -i 's/^DISTRIB_ID=.*/DISTRIB_ID=34OS/; s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="34OS v1"/' "$ROOTFS/etc/lsb-release"
+  sudo sed -i 's/^DISTRIB_ID=.*/DISTRIB_ID=34OS/; s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="34OS v1.1"/' "$ROOTFS/etc/lsb-release"
 fi
 
 in_chroot apt-get update
 in_chroot apt-get install -y --no-install-recommends \
   linux-image-generic live-boot systemd-sysv \
   bash nano locales sudo zstd \
-  iproute2 iputils-ping less man-db
+  iproute2 iputils-ping less man-db fbterm fonts-vlgothic kbd
 
 # locale: Japanese only
 echo "ja_JP.UTF-8 UTF-8" | sudo tee "$ROOTFS/etc/locale.gen" >/dev/null
@@ -58,6 +58,7 @@ echo "LANG=ja_JP.UTF-8" | sudo tee "$ROOTFS/etc/default/locale" >/dev/null
 # would create the account at boot and the getty login could never succeed).
 # Login: user / live. Sudo is passwordless.
 in_chroot useradd -m -s /bin/bash user
+in_chroot usermod -aG video,input user
 echo "user:live" | in_chroot chpasswd
 echo "user ALL=(ALL) NOPASSWD:ALL" | sudo tee "$ROOTFS/etc/sudoers.d/34os" >/dev/null
 sudo chmod 440 "$ROOTFS/etc/sudoers.d/34os"
@@ -124,7 +125,7 @@ sudo chmod +x "$ROOTFS/usr/local/bin/help" "$ROOTFS/usr/local/bin/gogui" "$ROOTF
 # Front commands are symlinks in /usr/local/34os-front. The live user's PATH
 # is limited to the front stage + /usr/local/bin, so system internals stay
 # installed but out of sight. Root keeps the full PATH.
-FRONT_CMDS="ls cat man nano sudo apt mkdir rm mv cp grep less dircolors lesspipe"
+FRONT_CMDS="ls cat man nano sudo apt mkdir rm mv cp grep less dircolors lesspipe basename dirname iconv col tbl nroff groff grotty eqn pic gzip groups"
 sudo mkdir -p "$ROOTFS/usr/local/34os-front"
 for c in $FRONT_CMDS; do
   for d in usr/bin bin usr/sbin sbin; do
@@ -137,11 +138,47 @@ printf '\n# 34OS v1: front-stage commands only\nexport PATH="/usr/local/34os-fro
 printf 'enable -n help\n' | sudo tee -a "$ROOTFS/etc/bash.bashrc" >/dev/null
 
 # v1 polish: 34OS login texts (replace the Ubuntu MOTD help text and legal)
-printf 'The programs included with 34OS are free software; the exact distribution terms for each program are described in the individual files in /usr/share/doc/*/copyright.\n\n34OS comes with ABSOLUTELY NO WARRANTY, to the extent permitted by applicable law.\n' | sudo tee "$ROOTFS/etc/legal" >/dev/null
+printf '34OS 本体は WTFPL です。好きに使ってください。改変版を配る場合は、同じ WTFPL の条件を引き継いでください。\n同梱プログラムのライセンスは各自のものを継承します（/usr/share/doc/*/copyright 参照）。\n' | sudo tee "$ROOTFS/etc/legal" >/dev/null
 if [ -f "$ROOTFS/etc/update-motd.d/10-help-text" ]; then
   printf '#!/bin/sh\necho " * Help: type help for the 34OS command list"\n' | sudo tee "$ROOTFS/etc/update-motd.d/10-help-text" >/dev/null
   sudo chmod +x "$ROOTFS/etc/update-motd.d/10-help-text"
 fi
+
+# v1.1: ship a clean /etc/hosts. The build host's hosts file was copied in
+# for build-time networking and must not ship; a proper 34os entry also
+# fixes sudo's "unable to resolve host 34os" warning.
+printf '127.0.0.1 localhost\n127.0.1.1 34os\n::1 localhost ip6-localhost ip6-loopback\nfe00::0 ip6-localnet\nff00::0 ip6-mcastprefix\nff02::1 ip6-allnodes\nff02::2 ip6-allrouters\n' | sudo tee "$ROOTFS/etc/hosts" >/dev/null
+# v1.1: Japanese keyboard. The live user's keyboard is a JIS layout, so
+# load the jp106 console keymap at boot (the default US map puts symbols
+# on the wrong keys). /etc/default/keyboard also documents the layout
+# for the future X session in v2.
+printf 'XKBMODEL="pc105"\nXKBLAYOUT="jp"\nXKBVARIANT=""\nXKBOPTIONS=""\nBACKSPACE="guess"\n' | sudo tee "$ROOTFS/etc/default/keyboard" >/dev/null
+sudo tee "$ROOTFS/etc/systemd/system/34os-keymap.service" >/dev/null <<'EOF3'
+[Unit]
+Description=34OS: load the Japanese console keymap
+After=local-fs.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/loadkeys jp106
+[Install]
+WantedBy=multi-user.target
+EOF3
+in_chroot systemctl enable 34os-keymap.service
+
+# v1.1: Japanese on the console. The raw console font has no Japanese
+# glyphs (text renders as blocks), so tty1 sessions are handed to fbterm,
+# which renders Japanese with VL Gothic. Other ttys stay plain (fallback).
+printf 'font-names=VL Gothic\nfont-size=16\n' | sudo tee "$ROOTFS/home/user/.fbtermrc" "$ROOTFS/etc/skel/.fbtermrc" >/dev/null
+in_chroot chown user:user /home/user/.fbtermrc
+sudo tee "$ROOTFS/etc/profile.d/34os-fbterm.sh" >/dev/null <<'EOF2'
+# 34OS: hand tty1 to fbterm so Japanese renders on the console.
+if [ "$(/usr/bin/tty)" = "/dev/tty1" ] && [ -z "${FBTERM_STARTED:-}" ] && [ -x /usr/bin/fbterm ] && [ -e /dev/fb0 ]; then
+  FBTERM_STARTED=1
+  export FBTERM_STARTED
+  exec /usr/bin/fbterm
+fi
+EOF2
+
 
 
 # 3) slimming: firmware trim (keep common NIC / Wi-Fi only), docs, apt cache
@@ -179,12 +216,12 @@ sudo chown -R "$(id -u):$(id -g)" "$ISODIR"
 cat > "$ISODIR/boot/grub/grub.cfg" <<'EOF'
 set default=0
 set timeout=5
-menuentry "34OS v1 (CLI live)" {
-  linux /casper/vmlinuz boot=live live-media-path=/casper hostname=34os locales=ja_JP.UTF-8 quiet ---
+menuentry "34OS v1.1 (CLI live)" {
+  linux /casper/vmlinuz boot=live live-media-path=/casper hostname=34os locales=ja_JP.UTF-8 ---
   initrd /casper/initrd.img
 }
 EOF
-echo "34OS v1 - CLI live prototype" > "$ISODIR/README.txt"
+echo "34OS v1.1 - CLI live prototype" > "$ISODIR/README.txt"
 
 # 5) ISO (BIOS + UEFI hybrid via grub-mkrescue)
 rm -f "$OUT"
