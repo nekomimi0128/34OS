@@ -432,7 +432,7 @@ sudo tee "$ROOTFS/etc/profile.d/34os-fbterm.sh" >/dev/null <<'EOF2'
 if [ "$(/usr/bin/tty)" = "/dev/tty1" ] && [ -z "${FBTERM_STARTED:-}" ] && [ -x /usr/bin/fbterm ] && [ -e /dev/fb0 ]; then
   FBTERM_STARTED=1
   export FBTERM_STARTED
-  exec /usr/bin/fbterm
+  exec /usr/bin/fbterm 2>/tmp/fbterm-start.log
 fi
 EOF2
 
