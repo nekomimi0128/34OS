@@ -160,7 +160,7 @@ DISKS=()
 i=1
 for d in "${ALL_DISKS[@]}"; do
   [ "$d" = "$MEDIUM_DISK" ] && continue
-  case "$d" in loop*|ram*) continue ;; esac
+  case "$d" in loop*|ram*|fd*) continue ;; esac
   DISKS+=("$d")
   printf '  %d) %s\n' "$i" "$(lsblk -dno NAME,SIZE,MODEL "/dev/$d" | sed 's/  */ /g')"
   i=$((i+1))
@@ -312,6 +312,16 @@ rm -f "$TGT/etc/apt/apt.conf.d/99build-proxy"
 printf '# managed by the system\n' > "$TGT/etc/resolv.conf"
 rm -f "$TGT/etc/sudoers.d/34os"
 
+# The live squashfs excludes the kernel and initrd (on the ISO they live in
+# /casper, outside the squashfs), so the copy above leaves only dangling
+# /boot symlinks and the installed system cannot boot. Copy them from the
+# live medium under their versioned names.
+KVER=$(uname -r)
+CASPER_DIR=$(dirname "$SQFS")
+[ -f "$CASPER_DIR/vmlinuz" ] || die "ライブメディアにカーネルが見つかりません"
+cp "$CASPER_DIR/vmlinuz" "$TGT/boot/vmlinuz-$KVER" || die "カーネルのコピーに失敗しました"
+cp "$CASPER_DIR/initrd.img" "$TGT/boot/initrd.img-$KVER" || die "initrd のコピーに失敗しました"
+
 # fstab
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_PART")
 {
@@ -351,8 +361,8 @@ if [ "$UEFI" -eq 1 ]; then
 else
   chroot "$TGT" grub-install --target=i386-pc "$DISK" || die "GRUB のインストールに失敗しました"
 fi
-chroot "$TGT" update-grub || die "GRUB 設定の生成に失敗しました"
 chroot "$TGT" update-initramfs -u || die "initramfs の再生成に失敗しました"
+chroot "$TGT" update-grub || die "GRUB 設定の生成に失敗しました"
 rm -f "$TGT/usr/sbin/policy-rc.d"
 
 cleanup_mounts
