@@ -10,7 +10,7 @@ MIRROR="${MIRROR:-http://archive.ubuntu.com/ubuntu/}"
 WORK="$PWD/build"
 ROOTFS=$WORK/rootfs
 ISODIR=$WORK/iso
-OUT="$PWD/34os-v2.iso"
+OUT="$PWD/34os-v2.0.5.iso"
 
 echo "=== 34OS v1 CI build started: $(date -Is) ==="
 
@@ -36,11 +36,11 @@ echo "34os" | sudo tee "$ROOTFS/etc/hostname" >/dev/null
 
 # v1 branding: show 34OS, not Ubuntu (login banner + release info)
 sudo tee "$ROOTFS/etc/issue" >/dev/null <<'EOS'
-34OS v2 \n \l
+34OS v2.0.5 \n \l
 EOS
-sudo sed -i 's/^NAME=.*/NAME="34OS"/; s/^PRETTY_NAME=.*/PRETTY_NAME="34OS v2"/' "$ROOTFS/etc/os-release"
+sudo sed -i 's/^NAME=.*/NAME="34OS"/; s/^PRETTY_NAME=.*/PRETTY_NAME="34OS v2.0.5"/' "$ROOTFS/etc/os-release"
 if [ -f "$ROOTFS/etc/lsb-release" ]; then
-  sudo sed -i 's/^DISTRIB_ID=.*/DISTRIB_ID=34OS/; s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="34OS v2"/' "$ROOTFS/etc/lsb-release"
+  sudo sed -i 's/^DISTRIB_ID=.*/DISTRIB_ID=34OS/; s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="34OS v2.0.5"/' "$ROOTFS/etc/lsb-release"
 fi
 
 # v2: ca-certificates first: the Mozilla repo is HTTPS-only and a fresh
@@ -69,7 +69,7 @@ in_chroot apt-get install -y --no-install-recommends \
   xinit x11-xserver-utils x11-apps procps \
   fluxbox sakura pcmanfm galculator abiword \
   fcitx5 fcitx5-mozc \
-  network-manager network-manager-gnome policykit-1-gnome \
+  network-manager network-manager-gnome policykit-1-gnome fonts-morisawa-bizud-gothic \
   alsa-utils apulse librsvg2-common volumeicon-alsa cbatticon \
   feh mpv scrot firefox
 
@@ -427,7 +427,7 @@ sudo chmod +x "$ROOTFS/usr/local/bin/help" "$ROOTFS/usr/local/bin/gogui" "$ROOTF
 # Front commands are symlinks in /usr/local/34os-front. The live user's PATH
 # is limited to the front stage + /usr/local/bin, so system internals stay
 # installed but out of sight. Root keeps the full PATH.
-FRONT_CMDS="ls cat man nano sudo apt mkdir rm mv cp grep less dircolors lesspipe basename dirname iconv col tbl nroff groff grotty eqn pic gzip groups"
+FRONT_CMDS="ls clear cat man nano sudo apt mkdir rm mv cp grep less dircolors lesspipe basename dirname iconv col tbl nroff groff grotty eqn pic gzip groups"
 sudo mkdir -p "$ROOTFS/usr/local/34os-front"
 for c in $FRONT_CMDS; do
   for d in usr/bin bin usr/sbin sbin; do
@@ -484,6 +484,11 @@ in_chroot systemctl enable 34os-keymap.service
 # 34OS is Japanese-only: pin the timezone to JST (the base image is UTC).
 in_chroot ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 printf 'Asia/Tokyo\n' | sudo tee "$ROOTFS/etc/timezone" >/dev/null
+# The RTC is read as local time, not UTC: most target machines dual-boot
+# Windows, which keeps the hardware clock in local time. Without this,
+# the clock shows +9h on such machines (found in the 2026-11-21
+# real-hardware test).
+printf '0.0 0 0.0\n0\nLOCAL\n' | sudo tee "$ROOTFS/etc/adjtime" >/dev/null
 
 # v1.2: Japanese on the console. The raw console font has no Japanese
 # glyphs (text renders as blocks), so tty1 sessions are handed to fbterm,
@@ -532,9 +537,15 @@ printf '# managed by the system\n' | sudo tee "$ROOTFS/etc/resolv.conf" >/dev/nu
 # Removing subpackages also removes the linux-firmware and
 # linux-image-generic metas; the versioned kernel packages stay.
 in_chroot apt-get remove -y linux-firmware-nvidia-graphics linux-firmware-mellanox-spectrum linux-firmware-marvell-prestera linux-firmware-qualcomm-misc linux-firmware-qlogic linux-firmware-netronome || true
-# Extra kernel modules for uncommon hardware: the main modules
-# package keeps the common laptop drivers (Puppy-style curation).
-in_chroot bash -c "apt-get remove -y 'linux-modules-extra-*-generic'" || true
+# Extra kernel modules STAY: linux-modules-extra holds the drivers
+# most real laptops need (Intel graphics, Atheros Wi-Fi/Ethernet,
+# HDA audio). Removing it (first slimming pass) left the test
+# dynabook with no display driver, no network and no sound: 5,462
+# of 6,473 modules were in that package. Prune only the module
+# families a PC never uses, then rebuild the module indexes so
+# udev autoload metadata stays exact for what remains.
+in_chroot bash -c 'for d in /usr/lib/modules/*/kernel; do rm -rf "$d/drivers/media" "$d/drivers/iio" "$d/drivers/comedi" "$d/drivers/staging" "$d/drivers/mtd"; done' || true
+in_chroot bash -c 'for v in /usr/lib/modules/*; do depmod -a "$(basename "$v")"; done' || true
 # iwlwifi firmware for API versions newer than kernel 6.8 requests:
 # the driver asks for its own max API and walks down, and every
 # version it can ask for stays on disk.
@@ -561,6 +572,33 @@ sudo cp ./wallpaper-lighthouse-16x9.png "$ROOTFS/usr/share/34os/wallpapers/light
 # the build tree land root-only (640), and pcmanfm then silently falls
 # back to the plain background color
 sudo chmod 644 "$ROOTFS/usr/share/34os/wallpapers/"*.png
+# GUI font: BIZ UDGothic as the sans-serif default (decided
+# 2026-11-21; Morisawa UD face under the OFL, safe to ship).
+# VL Gothic stays for the console (fbterm) and as glyph fallback.
+sudo tee "$ROOTFS/etc/fonts/conf.d/60-34os-ui-font.conf" >/dev/null <<'EOF34F'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <alias binding="strong">
+    <family>sans-serif</family>
+    <prefer><family>BIZ UDGothic</family></prefer>
+  </alias>
+</fontconfig>
+EOF34F
+# Networking fixes from the 2026-11-21 real-hardware test: Ubuntu's
+# 10-globally-managed-devices.conf leaves wired ethernet unmanaged, so
+# NetworkManager showed no devices at all. Remove it.
+sudo rm -f "$ROOTFS/usr/lib/NetworkManager/conf.d/10-globally-managed-devices.conf"
+# The live user must be able to edit network settings without a root
+# password (the live image has none, so the polkit prompt dead-ends).
+sudo tee "$ROOTFS/etc/polkit-1/rules.d/49-34os-network.rules" >/dev/null <<'EOF34P'
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 &&
+        subject.isInGroup("sudo")) {
+        return polkit.Result.YES;
+    }
+});
+EOF34P
 
 # Firefox default preferences (homepage = the hidden page for 34OS users)
 sudo mkdir -p "$ROOTFS/usr/lib/firefox/defaults/pref"
@@ -720,6 +758,7 @@ desktop_bg=#1a1d20
 show_documents=0
 show_trash=1
 show_home=1
+show_wm_menu=1
 show_mounts=0
 EOF2
 done
@@ -734,6 +773,9 @@ for app in firefox pcmanfm sakura abiword galculator; do
   fi
 done
 in_chroot chown -R user:user /home/user/Desktop
+# Desktop launchers must be executable, or PCManFM asks for
+# confirmation on every double-click.
+sudo find "$ROOTFS/home/user/Desktop" "$ROOTFS/etc/skel/Desktop" -name '*.desktop' -exec chmod 755 {} + 2>/dev/null || true
 
 # 3) slimming: firmware trim (keep common NIC / Wi-Fi only), docs, apt cache
 if [ -d "$ROOTFS/usr/lib/firmware" ]; then
@@ -770,12 +812,12 @@ sudo chown -R "$(id -u):$(id -g)" "$ISODIR"
 cat > "$ISODIR/boot/grub/grub.cfg" <<'EOF'
 set default=0
 set timeout=5
-menuentry "34OS v2 (live)" {
+menuentry "34OS v2.0.5 (live)" {
   linux /casper/vmlinuz boot=live live-media-path=/casper hostname=34os locales=ja_JP.UTF-8 ---
   initrd /casper/initrd.img
 }
 EOF
-echo "34OS v2" > "$ISODIR/README.txt"
+echo "34OS v2.0.5" > "$ISODIR/README.txt"
 
 # 5) ISO (BIOS + UEFI hybrid via grub-mkrescue)
 rm -f "$OUT"

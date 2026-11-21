@@ -388,7 +388,7 @@ sudo chmod +x "$ROOTFS/usr/local/bin/help" "$ROOTFS/usr/local/bin/gogui" "$ROOTF
 # Front commands are symlinks in /usr/local/34os-front. The live user's PATH
 # is limited to the front stage + /usr/local/bin, so system internals stay
 # installed but out of sight. Root keeps the full PATH.
-FRONT_CMDS="ls cat man nano sudo apt mkdir rm mv cp grep less dircolors lesspipe basename dirname iconv col tbl nroff groff grotty eqn pic gzip groups"
+FRONT_CMDS="ls clear cat man nano sudo apt mkdir rm mv cp grep less dircolors lesspipe basename dirname iconv col tbl nroff groff grotty eqn pic gzip groups"
 sudo mkdir -p "$ROOTFS/usr/local/34os-front"
 for c in $FRONT_CMDS; do
   for d in usr/bin bin usr/sbin sbin; do
@@ -445,6 +445,11 @@ in_chroot systemctl enable 34os-keymap.service
 # 34OS is Japanese-only: pin the timezone to JST (the base image is UTC).
 in_chroot ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 printf 'Asia/Tokyo\n' | sudo tee "$ROOTFS/etc/timezone" >/dev/null
+# The RTC is read as local time, not UTC: most target machines dual-boot
+# Windows, which keeps the hardware clock in local time. Without this,
+# the clock shows +9h on such machines (found in the 2026-11-21
+# real-hardware test).
+printf '0.0 0 0.0\n0\nLOCAL\n' | sudo tee "$ROOTFS/etc/adjtime" >/dev/null
 
 # v1.2: Japanese on the console. The raw console font has no Japanese
 # glyphs (text renders as blocks), so tty1 sessions are handed to fbterm,
