@@ -9,7 +9,7 @@ WORK="/mnt/34os/build"
 mkdir -p "$WORK"
 ROOTFS=$WORK/rootfs
 ISODIR=$WORK/iso
-OUT=34os-v2.0.5.iso
+OUT=34os-v2.0.6.iso
 LOG=build-v1.log
 
 exec > >(tee -a "$LOG") 2>&1
@@ -48,11 +48,11 @@ echo "34os" | sudo tee "$ROOTFS/etc/hostname" >/dev/null
 
 # v1 branding: show 34OS, not Ubuntu (login banner + release info)
 sudo tee "$ROOTFS/etc/issue" >/dev/null <<'EOS'
-34OS v2.0.5 \n \l
+34OS v2.0.6 \n \l
 EOS
-sudo sed -i 's/^NAME=.*/NAME="34OS"/; s/^PRETTY_NAME=.*/PRETTY_NAME="34OS v2.0.5"/' "$ROOTFS/etc/os-release"
+sudo sed -i 's/^NAME=.*/NAME="34OS"/; s/^PRETTY_NAME=.*/PRETTY_NAME="34OS v2.0.6"/' "$ROOTFS/etc/os-release"
 if [ -f "$ROOTFS/etc/lsb-release" ]; then
-  sudo sed -i 's/^DISTRIB_ID=.*/DISTRIB_ID=34OS/; s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="34OS v2.0.5"/' "$ROOTFS/etc/lsb-release"
+  sudo sed -i 's/^DISTRIB_ID=.*/DISTRIB_ID=34OS/; s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="34OS v2.0.6"/' "$ROOTFS/etc/lsb-release"
 fi
 
 # v2: ca-certificates first: the Mozilla repo is HTTPS-only and a fresh
@@ -556,7 +556,7 @@ in_chroot apt-get remove -y linux-firmware-nvidia-graphics linux-firmware-mellan
 # of 6,473 modules were in that package. Prune only the module
 # families a PC never uses, then rebuild the module indexes so
 # udev autoload metadata stays exact for what remains.
-in_chroot bash -c 'for d in /usr/lib/modules/*/kernel; do rm -rf "$d/drivers/media" "$d/drivers/iio" "$d/drivers/comedi" "$d/drivers/staging" "$d/drivers/mtd"; done' || true
+in_chroot bash -c 'for d in /usr/lib/modules/*/kernel; do rm -rf "$d/drivers/iio" "$d/drivers/comedi" "$d/drivers/mtd"; done' || true
 in_chroot bash -c 'for v in /usr/lib/modules/*; do depmod -a "$(basename "$v")"; done' || true
 # iwlwifi firmware for API versions newer than kernel 6.8 requests:
 # the driver asks for its own max API and walks down, and every
@@ -611,6 +611,14 @@ polkit.addRule(function(action, subject) {
     }
 });
 EOF34P
+
+# v2.0.6: on real hardware the rule above alone did not stop NM denials,
+# so NetworkManager's polkit checks are disabled outright. The live user
+# already has passwordless sudo; 34OS is a single-user live OS.
+sudo tee "$ROOTFS/etc/NetworkManager/conf.d/20-34os-auth.conf" >/dev/null <<'EOF34N'
+[main]
+auth-polkit=false
+EOF34N
 
 # Firefox default preferences (homepage = the hidden page for 34OS users)
 sudo mkdir -p "$ROOTFS/usr/lib/firefox/defaults/pref"
@@ -827,12 +835,12 @@ sudo chown -R "$(id -u):$(id -g)" "$ISODIR"
 cat > "$ISODIR/boot/grub/grub.cfg" <<'EOF'
 set default=0
 set timeout=5
-menuentry "34OS v2.0.5 (live)" {
+menuentry "34OS v2.0.6 (live)" {
   linux /casper/vmlinuz boot=live live-media-path=/casper hostname=34os locales=ja_JP.UTF-8 ---
   initrd /casper/initrd.img
 }
 EOF
-echo "34OS v2.0.5" > "$ISODIR/README.txt"
+echo "34OS v2.0.6" > "$ISODIR/README.txt"
 
 # 5) ISO (BIOS + UEFI hybrid via grub-mkrescue)
 rm -f "$OUT"
