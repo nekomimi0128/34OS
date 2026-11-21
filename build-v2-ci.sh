@@ -90,7 +90,9 @@ echo "LANG=ja_JP.UTF-8" | sudo tee "$ROOTFS/etc/default/locale" >/dev/null
 # would create the account at boot and the getty login could never succeed).
 # Login: user / live. Sudo is passwordless.
 in_chroot useradd -m -s /bin/bash user
-in_chroot usermod -aG video,input user
+in_chroot usermod -aG video,input,sudo user
+# NOTE: sudo group is required, not just the sudoers file: the polkit rule
+# in 49-34os-network.rules checks subject.isInGroup("sudo").
 echo "user:live" | in_chroot chpasswd
 echo "user ALL=(ALL) NOPASSWD:ALL" | sudo tee "$ROOTFS/etc/sudoers.d/34os" >/dev/null
 sudo chmod 440 "$ROOTFS/etc/sudoers.d/34os"
@@ -354,7 +356,11 @@ unsquashfs -f -d "$TGT" "$SQFS" >/dev/null || diecode COPY_FAILED "コピーに�
 
 # drop build-time leftovers that must not ship to an installed system
 rm -f "$TGT/etc/apt/apt.conf.d/99build-proxy"
-printf '# managed by the system\n' > "$TGT/etc/resolv.conf"
+# v2.0.6: a comment-only resolv.conf leaves the live system with no DNS
+# (Firefox could connect but never resolve names on real hardware).
+# Ship a fallback nameserver; NetworkManager overwrites this when it
+# manages a connection.
+printf '# managed by the system\nnameserver 8.8.8.8\n' > "$TGT/etc/resolv.conf"
 rm -f "$TGT/etc/sudoers.d/34os"
 
 # The live squashfs excludes the kernel and initrd (on the ISO they live in
@@ -528,7 +534,11 @@ EOF3
 
 # v1.2: do not ship build-time network config (sandbox proxy / DNS)
 sudo rm -f "$ROOTFS/etc/apt/apt.conf.d/99build-proxy"
-printf '# managed by the system\n' | sudo tee "$ROOTFS/etc/resolv.conf" >/dev/null
+# v2.0.6: a comment-only resolv.conf leaves the live system with no DNS
+# (Firefox could connect but never resolve names on real hardware).
+# Ship a fallback nameserver; NetworkManager overwrites this when it
+# manages a connection.
+printf '# managed by the system\nnameserver 8.8.8.8\n' | sudo tee "$ROOTFS/etc/resolv.conf" >/dev/null
 
 
 # ============ v2 slimming ============
@@ -768,6 +778,14 @@ show_trash=1
 show_home=1
 show_wm_menu=1
 show_mounts=0
+EOF2
+  # v2.0.6: libfm asks for confirmation on every executable double-click
+  # unless quick_exec is set (this is what made the desktop launchers
+  # show the "execute" dialog on real hardware).
+  sudo mkdir -p "$D/.config/libfm"
+  sudo tee "$D/.config/libfm/libfm.conf" >/dev/null <<'EOF2'
+[config]
+quick_exec=1
 EOF2
 done
 sudo chmod +x "$ROOTFS/etc/skel/.xinitrc" "$ROOTFS/home/user/.xinitrc"
