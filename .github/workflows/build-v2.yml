@@ -21,5 +21,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: 34os-v2-iso
-          path: 34os-v2.iso
+          path: 34os-v2.0.5.iso
           if-no-files-found: error
