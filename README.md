@@ -22,7 +22,7 @@
 | パッケージ管理 | apt |
 | ロケール | **日本語（ja_JP.UTF-8）のみ**。英語は有志に任せる |
 | 日本語入力 | Mozc 標準搭載（GUI側、fcitx5-mozc） |
-| GUI | Fluxbox（必要な時だけ起動） |
+| GUI | 独自 UI「Astro」（自作ウィンドウマネージャ `34os-wm`、v2.1〜）。Fluxbox はフォールバックとして残置 |
 | ブラウザ | Firefox（Mozilla公式 .deb。snap は使わない） |
 
 ## コマンド
@@ -38,7 +38,7 @@ mkdir / rm / mv / cp / grep ...
 
 | コマンド | 意味 |
 |---|---|
-| `gogui` | GUI（Fluxbox）を起動する |
+| `gogui` | GUI（Astro。フォールバック時は Fluxbox）を起動する |
 | `gocli` | GUIを落としてCLIに戻る |
 | `browser` | ブラウザを開く |
 | `img` | 画像を表示する（feh） |
@@ -51,9 +51,9 @@ mkdir / rm / mv / cp / grep ...
 
 ## ステータス
 
-開発中。現在の最新版は **v2.0.6**（GUI 版）：Fluxbox + Firefox + Mozc のデスクトップ環境を搭載し、ISO サイズは 747MB。QEMU 検証オールクリア、実機テスト報告は募集中。
+開発中。現在の最新版は **v2.1「34OS Hachiroku-Rail TopNumber」**（初の製品名付きリリース）：独自 UI「Astro」（自作ウィンドウマネージャ＋パネル）を搭載する。CI ビルド成功済み、実機テスト報告は募集中。
 
-これまでの経緯：v1 が dynabook（初代 Core i5）で実機起動に成功。v1.1 は完成し、QEMU 検証オールクリア（コンソールの日本語表示・日本語キー配列・man 修正など）。v1.2 でインストーラ `install34` を搭載し、ライブ起動から HDD/SSD へのインストール（全消し／デュアルブート）が可能に。v2 で GUI パックを実装。v2.0.5 はスリム化で削りすぎたカーネルドライバの復旧版、v2.0.6 はその実機テストで見つかった問題（ネットワークポリシー・DNS・ファイルマネージャ）の修正版。
+これまでの経緯：v1 が dynabook（初代 Core i5）で実機起動に成功。v1.1 は完成し、QEMU 検証オールクリア（コンソールの日本語表示・日本語キー配列・man 修正など）。v1.2 でインストーラ `install34` を搭載し、ライブ起動から HDD/SSD へのインストール（全消し／デュアルブート）が可能に。v2 で GUI パックを実装。v2.0.5 はスリム化で削りすぎたカーネルドライバの復旧版、v2.0.6 はその実機テストで見つかった問題（ネットワークポリシー・DNS・ファイルマネージャ）の修正版で、dynabook 実機テストでは表示・画質・Firefox・ネットワーク権限が正常動作を確認（残課題：ホットスポットの SSID が他端末から見えない、音声調整の導線、Firefox のホームページ初期表示）。v2.1 で独自 UI「Astro」に移行した。
 
 ## ロードマップ
 
@@ -64,18 +64,24 @@ mkdir / rm / mv / cp / grep ...
 - **v2**: Fluxbox + Firefox + feh / mpv + Mozc の GUI パック（ターミナルは sakura、標準壁紙は蒸気機関車の線画）
 - **v2.0.5**: スリム化で削除しすぎたカーネルドライバ（GPU・ネットワーク・サウンド等）を復旧
 - **v2.0.6**: 実機テストで判明した問題の修正（ライブユーザーのグループ所属、DNS フォールバック、PCManFM の実行確認ダイアログ）
-- **v2.1（予定）**: 独自 UI「Astro」（自作ウィンドウマネージャ＋パネル）
-- その先: 自宅サーバーへのインストール、DWService でのリモート運用
+- **v2.1**: 独自 UI「Astro」（自作ウィンドウマネージャ＋パネル）搭載。製品名「34OS Hachiroku-Rail TopNumber」（略称 34OS H-TNum）としてリリース
+- **v2.1 ライト化（予定）**: ISO サイズを 550〜600MB へ（ファームウェア／ドライバ分類の見直し。ドライバ網羅は維持）
+- その先: Secure Boot 対応（Ubuntu の署名済みブートチェーン流用を検討）、自宅サーバーへのインストール、DWService でのリモート運用
 
 ## ビルド
 
 ```bash
-./build-v2.sh
+./build-v2.1.sh
 ```
 
-CI 版は `build-v2-ci.sh`。GitHub Actions で自動ビルドされ、ISO は Artifacts からダウンロードできる（ワークフローの `path:` は最新の ISO 名に合わせること）。CLI 版は `build-v1.2.sh` / `build-v1.2-ci.sh`。
+CI 版は `build-v2.1-ci.sh`（ワークフロー: `.github/workflows/build-v2.1.yml`）。GitHub Actions で自動ビルドされ、ISO は Artifacts（名前: `34os-v2.1-iso`）からダウンロードできる（ワークフローの `path:` は最新の ISO 名に合わせること）。CLI 版は `build-v1.2.sh` / `build-v1.2-ci.sh`。
 
 Ubuntu 24.04 上で debootstrap / squashfs-tools / grub / xorriso を使って ISO を生成する。
+
+## 起動メディア
+
+USB への書き込みは Rufus の DD モード、または Ventoy（インストール済み USB に ISO をコピーするだけ）で可能。
+注意：比較的新しい世代の Secure Boot 搭載 BIOS/UEFI では、Secure Boot を無効化しておく必要があります（34OS のブートローダは未署名のため）。
 
 ## 協力者募集（PR歓迎）
 
@@ -83,7 +89,7 @@ Ubuntu 24.04 上で debootstrap / squashfs-tools / grub / xorriso を使って I
 
 - **英語ロケールの追加**（現在は日本語のみ。方針として英語は有志に任せています）
 - **実機テスト**：手元の古い PC で起動・インストールしてみた報告（動いた／動かなかった、機種名があると助かります）
-- **軽量化**：ISO サイズ削減（CLI 版は約 500MB → 目標 300MB 台。GUI 版 v2.0.6 は 747MB で、ドライバを削ると実機で動かなくなるため、削る場所の見極めが課題）
+- **軽量化**：ISO サイズ削減（CLI 版は約 500MB → 目標 300MB 台。GUI 版は v2.0.6 で 747MB、v2.1 のライト化目標は 550〜600MB。ドライバを削ると実機で動かなくなるため、削る場所の見極めが課題）
 
 進め方は fork → Pull Request で。コードでなくても、Issue での相談・バグ報告だけでも歓迎です。
 
