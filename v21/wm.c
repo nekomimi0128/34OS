@@ -51,6 +51,10 @@
 #define MENU_ITEM_H    31   /* start menu item height in px           */
 #define TASKBTN_MAXW   184  /* maximum task button width in px        */
 #define STARTBTN_W     92   /* start button width in px               */
+#define TRAY_ICON_SZ   (PANEL_H - 8)  /* docked tray icon size (32)   */
+#define TRAY_PAD       4    /* gap between tray icons in px           */
+#define VOL_POPUP_W    252  /* volume popup width in px               */
+#define VOL_POPUP_H    46   /* volume popup height in px              */
 
 #define WALLPAPER_DIR  "/usr/share/34os/wallpapers"
 #define WALLPAPER_DEFAULT WALLPAPER_DIR "/steam-locomotive.png"
@@ -84,6 +88,7 @@ typedef struct Client {
     Bool maximized;
     Bool fullscreen;
     Bool is_dialog;
+    Bool skip_taskbar;   /* _NET_WM_STATE_SKIP_TASKBAR/PAGER      */
     char *title;         /* owned copy of the window title        */
     struct Client *next;
 } Client;
@@ -120,12 +125,13 @@ static XftFont *font_big;          /* start button / clock         */
 static XftColor col_text, col_dim;
 static unsigned long px_panel_bg, px_panel_line, px_title_on,
     px_title_off, px_frame_line, px_menu_bg, px_menu_hover,
-    px_task_on, px_task_off, px_desktop;
+    px_task_on, px_task_off, px_desktop, px_text;
 
 static Window panel;               /* our panel window             */
 static Cursor cur_arrow;           /* XC_left_ptr, set on root/panel/frames */
 static Window menu_win;            /* start menu window (0=closed) */
 static Window submenu_win;         /* submenu window (0=closed)    */
+static Window vol_win;             /* volume popup window (0=closed) */
 static int menu_hover = -1;        /* hovered main-menu index      */
 static int submenu_hover = -1;     /* hovered submenu index        */
 static int submenu_parent = -1;    /* main-menu index owning submenu */
@@ -148,10 +154,15 @@ static Atom xa_wm_protocols, xa_wm_delete, xa_wm_state, xa_wm_transient;
 static Atom xa_net_supported, xa_net_client_list, xa_net_active_window,
     xa_net_wm_name, xa_net_wm_state, xa_net_wm_state_fullscreen,
     xa_net_wm_state_max_horz, xa_net_wm_state_max_vert,
+    xa_net_wm_state_skip_taskbar, xa_net_wm_state_skip_pager,
     xa_net_wm_window_type, xa_net_wm_window_type_dialog,
+    xa_net_wm_window_type_desktop,
     xa_net_wm_window_type_dock, xa_net_close_window,
     xa_net_number_of_desktops, xa_net_current_desktop, xa_net_wm_desktop,
     xa_net_frame_extents, xa_net_wm_strut_partial, xa_xrootpmap_id;
+static Atom xa_net_system_tray_s0, xa_net_system_tray_opcode,
+    xa_net_system_tray_orientation, xa_net_system_tray_visual,
+    xa_manager, xa_xembed, xa_xembed_info;
 
 /* ------------------------------------------------------------------ */
 /* Small helpers                                                       */
@@ -308,20 +319,32 @@ static int read_network(int *is_wifi)
     return up;
 }
 
-/* Volume 0-100 from amixer, or -1 when unavailable. Polled at most
- * once every few seconds by the panel refresh logic. */
-static int read_volume(void)
+/* Volume 0-100 from amixer, or -1 when unavailable. When muted is
+ * non-NULL it receives the [on]/[off] switch state of the same
+ * control line. Polled at most once every few seconds by the panel
+ * refresh logic. */
+static int read_volume_ex(int *muted)
 {
     FILE *fp = popen("amixer get Master 2>/dev/null", "r");
     char buf[512];
     int vol = -1;
+    if (muted) *muted = 0;
     if (!fp) return -1;
     while (fgets(buf, sizeof buf, fp)) {
         char *pct = strchr(buf, '[');
-        if (pct && strchr(pct, '%')) { vol = atoi(pct + 1); break; }
+        if (pct && strchr(pct, '%')) {
+            vol = atoi(pct + 1);
+            if (muted && strstr(pct, "[off]")) *muted = 1;
+            break;
+        }
     }
     pclose(fp);
     return vol;
+}
+
+static int read_volume(void)
+{
+    return read_volume_ex(NULL);
 }
 
 /* "11/21 (土)" style date + "15:52" time, from local time (the OS
@@ -657,23 +680,77 @@ static Window transient_parent(Window w)
     return parent;
 }
 
-static Bool has_dialog_type(Window w)
+/* True when the window's atom-list property prop contains target.
+ * Used for _NET_WM_WINDOW_TYPE and _NET_WM_STATE lookups. */
+static Bool prop_has_atom(Window w, Atom prop, Atom target)
 {
     Atom actual;
     int format;
     unsigned long nitems, after;
     unsigned char *data = NULL;
     Bool found = False;
-    if (XGetWindowProperty(dpy, w, xa_net_wm_window_type, 0, 8, False,
+    if (XGetWindowProperty(dpy, w, prop, 0, 16, False,
                            XA_ATOM, &actual, &format, &nitems, &after,
                            &data) == Success && data) {
-        Atom *types = (Atom *)data;
+        Atom *atoms = (Atom *)data;
         unsigned long i;
         for (i = 0; i < nitems; i++)
-            if (types[i] == xa_net_wm_window_type_dialog) found = True;
+            if (atoms[i] == target) found = True;
         XFree(data);
     }
     return found;
+}
+
+/* ------------------------------------------------------------------ */
+/* Desktop windows (_NET_WM_WINDOW_TYPE_DESKTOP)                       */
+/*                                                                     */
+/* PCManFM's desktop window (the one carrying the desktop icons) is   */
+/* not a client: no frame, no task button, never iconified, kept at   */
+/* the bottom of the stack. We only track it so we can stop tracking  */
+/* it when it goes away.                                              */
+/* ------------------------------------------------------------------ */
+
+typedef struct DesktopWin {
+    Window win;
+    struct DesktopWin *next;
+} DesktopWin;
+
+static DesktopWin *desktops = NULL;
+
+static Bool find_desktop(Window w)
+{
+    DesktopWin *d;
+    for (d = desktops; d; d = d->next)
+        if (d->win == w) return True;
+    return False;
+}
+
+static Bool remove_desktop(Window w)
+{
+    DesktopWin **pp;
+    for (pp = &desktops; *pp; pp = &(*pp)->next) {
+        if ((*pp)->win == w) {
+            DesktopWin *dead = *pp;
+            *pp = dead->next;
+            free(dead);
+            return True;
+        }
+    }
+    return False;
+}
+
+static void manage_desktop(Window w)
+{
+    DesktopWin *d;
+    if (!find_desktop(w)) {
+        d = malloc(sizeof *d);
+        d->win = w;
+        d->next = desktops;
+        desktops = d;
+        XSelectInput(dpy, w, StructureNotifyMask);
+    }
+    XMapWindow(dpy, w);
+    XLowerWindow(dpy, w);
 }
 
 /* Start managing a window: build its frame and reparent it. */
@@ -686,13 +763,20 @@ static void manage(Window w)
     Window tp;
     unsigned long border_color;
 
-    if (w == panel || w == menu_win || w == submenu_win) {
+    if (w == panel || w == menu_win || w == submenu_win || w == vol_win) {
         XMapWindow(dpy, w);
         return;
     }
     if (find_client(w)) return;
     if (!XGetWindowAttributes(dpy, w, &attr)) return;
     if (attr.override_redirect) return;
+
+    /* Desktop windows (PCManFM's icon layer) get no frame at all. */
+    if (prop_has_atom(w, xa_net_wm_window_type,
+                      xa_net_wm_window_type_desktop)) {
+        manage_desktop(w);
+        return;
+    }
 
     c = calloc(1, sizeof *c);
     c->win = w;
@@ -708,7 +792,13 @@ static void manage(Window w)
     }
 
     tp = transient_parent(w);
-    c->is_dialog = has_dialog_type(w) || tp != None;
+    c->is_dialog = prop_has_atom(w, xa_net_wm_window_type,
+                                 xa_net_wm_window_type_dialog)
+                   || tp != None;
+    c->skip_taskbar = prop_has_atom(w, xa_net_wm_state,
+                                    xa_net_wm_state_skip_taskbar)
+                      || prop_has_atom(w, xa_net_wm_state,
+                                       xa_net_wm_state_skip_pager);
     if (tp != None) parent_c = find_client(tp);
 
     /* Dialogs open centred over their parent (or the screen). */
@@ -879,6 +969,190 @@ static void close_client(Client *c)
 static void open_menu(void);
 static void close_menu(void);
 static void draw_panel(void);
+static void open_vol_popup(void);
+static void close_vol_popup(void);
+
+/* ------------------------------------------------------------------ */
+/* System tray (_NET_SYSTEM_TRAY + XEMBED)                             */
+/*                                                                     */
+/* The panel window itself owns the _NET_SYSTEM_TRAY_S0 selection     */
+/* and docked icons are reparented straight into the panel, to the    */
+/* left of the text indicators. Icons in the tray are not clients:    */
+/* no frame, no task button.                                          */
+/* ------------------------------------------------------------------ */
+
+typedef struct TrayIcon {
+    Window win;
+    Bool mapped;             /* shown (per _XEMBED_INFO / map state) */
+    int lx, ly;              /* last position we placed it at        */
+    struct TrayIcon *next;
+} TrayIcon;
+
+static TrayIcon *tray_icons = NULL;
+
+static TrayIcon *find_tray_icon(Window w)
+{
+    TrayIcon *t;
+    for (t = tray_icons; t; t = t->next)
+        if (t->win == w) return t;
+    return NULL;
+}
+
+static int tray_visible_count(void)
+{
+    TrayIcon *t;
+    int n = 0;
+    for (t = tray_icons; t; t = t->next)
+        if (t->mapped) n++;
+    return n;
+}
+
+/* Total pixel width of the tray area (0 when nothing is docked). */
+static int tray_area_width(void)
+{
+    int n = tray_visible_count();
+    if (n == 0) return 0;
+    return n * (TRAY_ICON_SZ + TRAY_PAD) - TRAY_PAD;
+}
+
+/* Place all visible icons in a row ending at right_edge (panel
+ * coordinates). Icons are only moved when their slot changes, so
+ * the per-second panel redraw does not spam ConfigureNotifies. */
+static void layout_tray(int right_edge)
+{
+    TrayIcon *t;
+    int x = right_edge - tray_area_width();
+    for (t = tray_icons; t; t = t->next) {
+        int y = (PANEL_H - TRAY_ICON_SZ) / 2;
+        if (!t->mapped) continue;
+        if (t->lx != x || t->ly != y) {
+            XMoveResizeWindow(dpy, t->win, x, y,
+                              TRAY_ICON_SZ, TRAY_ICON_SZ);
+            t->lx = x;
+            t->ly = y;
+        }
+        x += TRAY_ICON_SZ + TRAY_PAD;
+    }
+}
+
+/* Read _XEMBED_INFO: returns False when the property is absent
+ * (callers then assume the icon wants to be mapped). */
+static Bool xembed_info_mapped(Window w)
+{
+    Atom actual;
+    int format;
+    unsigned long nitems, after;
+    unsigned char *data = NULL;
+    Bool mapped = True;
+    if (XGetWindowProperty(dpy, w, xa_xembed_info, 0, 2, False,
+                           AnyPropertyType, &actual, &format, &nitems,
+                           &after, &data) == Success && data) {
+        if (nitems >= 2) {
+            unsigned long *info = (unsigned long *)data;
+            mapped = (info[1] & 1) ? True : False;  /* XEMBED_MAPPED */
+        }
+        XFree(data);
+    }
+    return mapped;
+}
+
+static void tray_update_info(TrayIcon *t)
+{
+    Bool want = xembed_info_mapped(t->win);
+    if (want && !t->mapped) {
+        t->mapped = True;
+        XMapWindow(dpy, t->win);
+    } else if (!want && t->mapped) {
+        t->mapped = False;
+        XUnmapWindow(dpy, t->win);
+    } else {
+        return;
+    }
+    draw_panel();
+}
+
+/* Dock an icon window that sent SYSTEM_TRAY_REQUEST_DOCK. */
+static void tray_dock(Window icon)
+{
+    TrayIcon *t;
+    XEvent ev;
+    if (icon == None || find_tray_icon(icon) || find_client(icon))
+        return;
+    t = calloc(1, sizeof *t);
+    t->win = icon;
+    t->lx = -1;
+    t->ly = -1;
+    t->mapped = xembed_info_mapped(icon);
+    t->next = tray_icons;
+    tray_icons = t;
+
+    XSelectInput(dpy, icon, StructureNotifyMask | PropertyChangeMask);
+    XAddToSaveSet(dpy, icon);
+    XReparentWindow(dpy, icon, panel, 0, 0);
+
+    /* XEMBED_EMBEDDED_NOTIFY: tells the icon it is docked, and in
+     * which window. GtkStatusIcon waits for this before drawing. */
+    memset(&ev, 0, sizeof ev);
+    ev.type = ClientMessage;
+    ev.xclient.window = icon;
+    ev.xclient.message_type = xa_xembed;
+    ev.xclient.format = 32;
+    ev.xclient.data.l[0] = CurrentTime;
+    ev.xclient.data.l[1] = 0;              /* XEMBED_EMBEDDED_NOTIFY */
+    ev.xclient.data.l[2] = 0;              /* protocol version 0     */
+    ev.xclient.data.l[3] = (long)panel;    /* the embedder window    */
+    XSendEvent(dpy, icon, False, NoEventMask, &ev);
+
+    if (t->mapped) XMapWindow(dpy, icon);
+    draw_panel();
+}
+
+/* Remove an icon from the tray (it was destroyed). Returns True
+ * when the window was a tray icon. */
+static Bool tray_remove(Window w)
+{
+    TrayIcon **pp;
+    for (pp = &tray_icons; *pp; pp = &(*pp)->next) {
+        if ((*pp)->win == w) {
+            TrayIcon *dead = *pp;
+            *pp = dead->next;
+            free(dead);
+            return True;
+        }
+    }
+    return False;
+}
+
+/* Claim the tray selection for the panel and broadcast MANAGER so
+ * applets that are already running dock themselves. */
+static void tray_init(void)
+{
+    unsigned long orient = 0;              /* horizontal */
+    VisualID vid = XVisualIDFromVisual(DefaultVisual(dpy, scr));
+    XEvent ev;
+
+    XSetSelectionOwner(dpy, xa_net_system_tray_s0, panel, CurrentTime);
+    if (XGetSelectionOwner(dpy, xa_net_system_tray_s0) != panel) {
+        fprintf(stderr, "34os-wm: could not own the system tray\n");
+        return;
+    }
+    XChangeProperty(dpy, panel, xa_net_system_tray_orientation,
+                    XA_CARDINAL, 32, PropModeReplace,
+                    (unsigned char *)&orient, 1);
+    XChangeProperty(dpy, panel, xa_net_system_tray_visual,
+                    XA_VISUALID, 32, PropModeReplace,
+                    (unsigned char *)&vid, 1);
+
+    memset(&ev, 0, sizeof ev);
+    ev.type = ClientMessage;
+    ev.xclient.window = root;
+    ev.xclient.message_type = xa_manager;
+    ev.xclient.format = 32;
+    ev.xclient.data.l[0] = CurrentTime;
+    ev.xclient.data.l[1] = (long)xa_net_system_tray_s0;
+    ev.xclient.data.l[2] = (long)panel;
+    XSendEvent(dpy, root, False, StructureNotifyMask, &ev);
+}
 
 /* ------------------------------------------------------------------ */
 /* Panel                                                               */
@@ -907,6 +1181,10 @@ static void refresh_indicators(Bool force)
 static struct { Client *c; int x, w; } taskbtns[MAX_TASKBTNS];
 static int taskbtn_count = 0;
 
+/* Volume indicator rectangle from the last draw_panel() (panel
+ * coordinates); vol_ind_x is -1 when no volume indicator is shown. */
+static int vol_ind_x = -1, vol_ind_w = 0;
+
 static Bool client_alive(Client *c)
 {
     Client *p;
@@ -930,12 +1208,14 @@ static void draw_panel(void)
     char ind[3][40];
     int ind_ws[3];
     int ind_n = 0, ind_w_total = 0, clock_w, ind_x, tasks_right;
+    int vol_idx = -1, tray_tw;
     int n, i, tx, avail, bw;
 
     if (!panel) return;
 
     /* Layout first: clock at the right edge, indicators to its
-     * left, task buttons in whatever room remains. */
+     * left, the tray area to the left of the indicators, and task
+     * buttons in whatever room remains. */
     format_clock(date, sizeof date, timestr, sizeof timestr);
     snprintf(clockbuf, sizeof clockbuf, "%s  %s", date, timestr);
     clock_w = text_w(font_big, clockbuf);
@@ -946,6 +1226,7 @@ static void draw_panel(void)
         snprintf(ind[ind_n], sizeof ind[0], "%s", "未接続");
     ind_n++;
     if (ind_volume >= 0) {
+        vol_idx = ind_n;
         snprintf(ind[ind_n], sizeof ind[0], "音量 %d%%", ind_volume);
         ind_n++;
     }
@@ -957,8 +1238,12 @@ static void draw_panel(void)
         ind_ws[i] = text_w(font, ind[i]);
         ind_w_total += ind_ws[i] + 16;
     }
-    ind_x = sw - 10 - clock_w - 18 - ind_w_total;
+    tray_tw = tray_area_width();
+    ind_x = sw - 10 - clock_w - 18 - ind_w_total
+            - (tray_tw ? tray_tw + 10 : 0);
     tasks_right = ind_x - 8;
+    vol_ind_x = -1;
+    vol_ind_w = 0;
 
     /* Background + top rule. */
     XSetForeground(dpy, gc, px_panel_bg);
@@ -975,9 +1260,11 @@ static void draw_panel(void)
               4 + (STARTBTN_W - 8 - text_w(font_big, "34OS")) / 2,
               centred_baseline(font_big, 0, PANEL_H), "34OS");
 
-    /* Task buttons, in client-list order. */
+    /* Task buttons, in client-list order. Windows that asked to
+     * skip the taskbar (applets, desktop helpers) get no button. */
     n = 0;
-    for (c = clients; c; c = c->next) n++;
+    for (c = clients; c; c = c->next)
+        if (!c->skip_taskbar) n++;
     tx = STARTBTN_W + 8;
     avail = tasks_right - tx;
     taskbtn_count = 0;
@@ -986,11 +1273,14 @@ static void draw_panel(void)
         if (bw > TASKBTN_MAXW) bw = TASKBTN_MAXW;
         if (bw < 28) bw = 28;
         i = 0;
-        for (c = clients; c && i < MAX_TASKBTNS; c = c->next, i++) {
-            int bx = tx + i * (bw + 4);
-            int wdt = bw;
+        for (c = clients; c && i < MAX_TASKBTNS; c = c->next) {
+            int bx, wdt;
+            if (c->skip_taskbar) continue;
+            bx = tx + i * (bw + 4);
+            wdt = bw;
             if (bx + wdt > tasks_right) wdt = tasks_right - bx;
             if (wdt < 24) break;
+            i++;
             taskbtns[taskbtn_count].c = c;
             taskbtns[taskbtn_count].x = bx;
             taskbtns[taskbtn_count].w = wdt;
@@ -1007,9 +1297,13 @@ static void draw_panel(void)
         }
     }
 
+    /* Tray icons sit between the task buttons and the indicators. */
+    if (tray_tw) layout_tray(ind_x - 10);
+
     /* Indicators + clock. */
     for (i = 0; i < ind_n; i++) {
         const XftColor *col = (i == 0 && !ind_net_up) ? &col_dim : &col_text;
+        if (i == vol_idx) { vol_ind_x = ind_x; vol_ind_w = ind_ws[i]; }
         draw_text(panel, font, col, ind_x,
                   centred_baseline(font, 0, PANEL_H), ind[i]);
         ind_x += ind_ws[i] + 16;
@@ -1026,6 +1320,11 @@ static void panel_click(int x, int button)
     if (x < STARTBTN_W) {
         if (menu_win) close_menu();
         else open_menu();
+        return;
+    }
+    if (vol_ind_x >= 0 && x >= vol_ind_x && x < vol_ind_x + vol_ind_w) {
+        if (vol_win) close_vol_popup();
+        else open_vol_popup();
         return;
     }
     for (i = 0; i < taskbtn_count; i++) {
@@ -1050,7 +1349,10 @@ static void create_panel(void)
 
     attr.override_redirect = True;
     attr.background_pixel = px_panel_bg;
-    attr.event_mask = ExposureMask | ButtonPressMask;
+    /* SubstructureNotifyMask is for the tray icons docked into the
+     * panel: we hear about their map/unmap/destroy. */
+    attr.event_mask = ExposureMask | ButtonPressMask
+                      | SubstructureNotifyMask;
     panel = XCreateWindow(dpy, root, 0, sh - PANEL_H,
                           (unsigned)sw, PANEL_H, 1,
                           CopyFromParent, InputOutput, CopyFromParent,
@@ -1187,6 +1489,7 @@ static void open_menu(void)
     XSetWindowAttributes attr;
     int h = (int)MAIN_MENU_COUNT * MENU_ITEM_H;
     if (menu_win) return;
+    if (vol_win) close_vol_popup();
     menu_y = sh - PANEL_H - h;
     if (menu_y < 0) menu_y = 0;
     attr.override_redirect = True;
@@ -1272,6 +1575,195 @@ static void menu_click(int xr, int yr, int button)
 }
 
 /* ------------------------------------------------------------------ */
+/* Volume popup                                                        */
+/*                                                                     */
+/* Clicking the panel's volume indicator opens a small popup with a  */
+/* horizontal slider (Windows 11 quick-settings style): speaker      */
+/* glyph on the left, slider, percentage. Dragging sets the volume   */
+/* through amixer; clicking the speaker toggles mute; clicking       */
+/* anywhere outside (or Escape) closes it. Uses the same pointer/    */
+/* keyboard grab approach as the start menu.                         */
+/* ------------------------------------------------------------------ */
+
+static int vol_popup_x, vol_popup_y;   /* root position of the popup */
+static int vol_value = -1;             /* popup's volume, -1 unknown */
+static Bool vol_muted = False;
+static Bool vol_dragging = False;
+static int vol_last_applied = -1;      /* last value sent to amixer  */
+
+/* Slider track span in popup-local coordinates. */
+#define VOL_SLIDER_X0 42
+#define VOL_SLIDER_X1 (VOL_POPUP_W - 54)
+#define VOL_SPEAKER_X1 36              /* speaker glyph area ends here */
+
+static void draw_vol_popup(void)
+{
+    GC gc = DefaultGC(dpy, scr);
+    int cy = VOL_POPUP_H / 2;
+    int kx, v;
+    char buf[16];
+
+    if (!vol_win) return;
+    XSetForeground(dpy, gc, px_menu_bg);
+    XFillRectangle(dpy, vol_win, gc, 0, 0, VOL_POPUP_W, VOL_POPUP_H);
+
+    /* Speaker glyph: a small box + wedge outline, line art only. */
+    XSetForeground(dpy, gc, px_frame_line);
+    XDrawRectangle(dpy, vol_win, gc, 10, cy - 3, 4, 6);
+    XDrawLine(dpy, vol_win, gc, 14, cy - 3, 20, cy - 8);
+    XDrawLine(dpy, vol_win, gc, 20, cy - 8, 20, cy + 8);
+    XDrawLine(dpy, vol_win, gc, 20, cy + 8, 14, cy + 3);
+    if (vol_muted) {                     /* cross = muted */
+        XDrawLine(dpy, vol_win, gc, 25, cy - 5, 33, cy + 5);
+        XDrawLine(dpy, vol_win, gc, 25, cy + 5, 33, cy - 5);
+    } else {                             /* two arcs = sound waves */
+        XDrawArc(dpy, vol_win, gc, 23, cy - 5, 7, 10, -60 * 64, 120 * 64);
+        XDrawArc(dpy, vol_win, gc, 25, cy - 9, 11, 18, -60 * 64, 120 * 64);
+    }
+
+    /* Slider: dim track, bright filled part, square knob. */
+    v = vol_value < 0 ? 0 : vol_value;
+    kx = VOL_SLIDER_X0 + (VOL_SLIDER_X1 - VOL_SLIDER_X0) * v / 100;
+    XSetForeground(dpy, gc, px_panel_line);
+    XDrawLine(dpy, vol_win, gc, VOL_SLIDER_X0, cy, VOL_SLIDER_X1, cy);
+    XSetForeground(dpy, gc, px_text);
+    XDrawLine(dpy, vol_win, gc, VOL_SLIDER_X0, cy, kx, cy);
+    XFillRectangle(dpy, vol_win, gc, kx - 5, cy - 5, 10, 10);
+    XSetForeground(dpy, gc, px_frame_line);
+    XDrawRectangle(dpy, vol_win, gc, kx - 5, cy - 5, 10, 10);
+
+    if (vol_value >= 0)
+        snprintf(buf, sizeof buf, "%d%%", vol_value);
+    else
+        snprintf(buf, sizeof buf, "--%%");
+    draw_text(vol_win, font, vol_muted ? &col_dim : &col_text,
+              VOL_SLIDER_X1 + 10, centred_baseline(font, 0, VOL_POPUP_H),
+              buf);
+    XFlush(dpy);
+}
+
+/* Send a volume value to amixer. While muted, setting a value also
+ * unmutes (that is what users expect from a slider). */
+static void apply_volume(int v)
+{
+    char buf[16];
+    const char *const cmd_unmute[] = { "amixer", "set", "Master", buf,
+                                       "unmute", NULL };
+    const char *const cmd_plain[]  = { "amixer", "set", "Master", buf,
+                                       NULL };
+    snprintf(buf, sizeof buf, "%d%%", v);
+    spawn(vol_muted ? cmd_unmute : cmd_plain);
+    if (vol_muted) vol_muted = False;
+    vol_last_applied = v;
+    ind_volume = v;              /* keep the panel text in sync */
+}
+
+/* Set the popup's volume; amixer is only called when the value moved
+ * enough, except when force is set (drag end). */
+static void vol_set(int v, Bool force)
+{
+    if (v < 0) v = 0;
+    if (v > 100) v = 100;
+    vol_value = v;
+    if (force || vol_last_applied < 0
+        || abs(v - vol_last_applied) >= 2)
+        apply_volume(v);
+    draw_vol_popup();
+}
+
+static int vol_from_x(int lx)
+{
+    int v;
+    if (lx <= VOL_SLIDER_X0) return 0;
+    if (lx >= VOL_SLIDER_X1) return 100;
+    v = (lx - VOL_SLIDER_X0) * 100 / (VOL_SLIDER_X1 - VOL_SLIDER_X0);
+    return v;
+}
+
+static void close_vol_popup(void)
+{
+    if (!vol_win) return;
+    XDestroyWindow(dpy, vol_win);
+    vol_win = 0;
+    vol_dragging = False;
+    vol_last_applied = -1;
+    XUngrabPointer(dpy, CurrentTime);
+    XUngrabKeyboard(dpy, CurrentTime);
+    draw_panel();
+}
+
+static void open_vol_popup(void)
+{
+    XSetWindowAttributes attr;
+    int muted = 0, cx;
+    if (vol_win) return;
+    if (menu_win) close_menu();
+    vol_value = read_volume_ex(&muted);
+    vol_muted = muted ? True : False;
+    vol_last_applied = vol_value;
+    vol_dragging = False;
+
+    cx = vol_ind_x + vol_ind_w / 2;
+    vol_popup_x = cx - VOL_POPUP_W / 2;
+    if (vol_popup_x < 0) vol_popup_x = 0;
+    if (vol_popup_x + VOL_POPUP_W > sw) vol_popup_x = sw - VOL_POPUP_W;
+    vol_popup_y = sh - PANEL_H - VOL_POPUP_H;
+
+    attr.override_redirect = True;
+    attr.background_pixel = px_menu_bg;
+    attr.event_mask = ExposureMask;
+    vol_win = XCreateWindow(dpy, root, vol_popup_x, vol_popup_y,
+                            VOL_POPUP_W, VOL_POPUP_H, 1,
+                            CopyFromParent, InputOutput, CopyFromParent,
+                            CWOverrideRedirect | CWBackPixel | CWEventMask,
+                            &attr);
+    XSetWindowBorder(dpy, vol_win, px_frame_line);
+    XDefineCursor(dpy, vol_win, cur_arrow);
+    XMapWindow(dpy, vol_win);
+    /* Same grab approach as the start menu: outside clicks and
+     * Escape reach us wherever the pointer is. */
+    XGrabPointer(dpy, root, False,
+                 ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+                 GrabModeAsync, GrabModeAsync, None, cur_arrow, CurrentTime);
+    XGrabKeyboard(dpy, root, False, GrabModeAsync, GrabModeAsync,
+                  CurrentTime);
+    draw_vol_popup();
+}
+
+static void vol_click(int xr, int yr, int button)
+{
+    int lx, ly;
+    if (button != Button1) return;
+    lx = xr - vol_popup_x;
+    ly = yr - vol_popup_y;
+    if (lx >= 0 && lx < VOL_POPUP_W && ly >= 0 && ly < VOL_POPUP_H) {
+        if (lx < VOL_SPEAKER_X1) {       /* speaker: toggle mute */
+            const char *const cmd[] = { "amixer", "set", "Master",
+                                        "toggle", NULL };
+            spawn(cmd);
+            vol_muted = !vol_muted;
+            draw_vol_popup();
+            return;
+        }
+        vol_dragging = True;
+        vol_set(vol_from_x(lx), False);
+        return;
+    }
+    /* Anywhere else: close. */
+    close_vol_popup();
+}
+
+static void vol_motion(int xr, int yr)
+{
+    int lx;
+    if (!vol_dragging) return;
+    lx = xr - vol_popup_x;
+    (void)yr;
+    if (vol_from_x(lx) != vol_value)
+        vol_set(vol_from_x(lx), False);
+}
+
+/* ------------------------------------------------------------------ */
 /* Mouse handling                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -1328,6 +1820,7 @@ static void handle_motion(XMotionEvent *e)
     Client *c;
     int dx, dy, minw, minh;
     if (menu_win) { menu_motion(e->x_root, e->y_root); return; }
+    if (vol_win) { vol_motion(e->x_root, e->y_root); return; }
     if (!drag.c || drag.mode == 0) return;
     c = drag.c;
     if (!client_alive(c)) { drag.c = NULL; drag.mode = 0; return; }
@@ -1357,6 +1850,10 @@ static void handle_button_press(XButtonEvent *e)
     Client *c;
     if (menu_win) {          /* pointer is grabbed to the root window */
         menu_click(e->x_root, e->y_root, (int)e->button);
+        return;
+    }
+    if (vol_win) {           /* same grab setup as the menu */
+        vol_click(e->x_root, e->y_root, (int)e->button);
         return;
     }
     if (e->window == panel) {
@@ -1434,7 +1931,15 @@ static void handle_configure_request(XConfigureRequestEvent *e)
 
 static void handle_unmap_notify(XUnmapEvent *e)
 {
-    Client *c = find_client(e->window);
+    Client *c;
+    TrayIcon *t;
+    if (remove_desktop(e->window)) return;   /* desktop layer went away */
+    t = find_tray_icon(e->window);
+    if (t) {                                 /* icon hid itself */
+        if (t->mapped) { t->mapped = False; draw_panel(); }
+        return;
+    }
+    c = find_client(e->window);
     if (!c || e->window != c->win) return;
     if (c->iconic) return;          /* our own iconify() did this */
     if (drag.c == c) { drag.c = NULL; drag.mode = 0; }
@@ -1444,9 +1949,15 @@ static void handle_unmap_notify(XUnmapEvent *e)
 
 static void handle_property_notify(XPropertyEvent *e)
 {
-    Client *c = find_client(e->window);
+    Client *c;
+    TrayIcon *t = find_tray_icon(e->window);
     XSizeHints hints;
     long supplied = 0;
+    if (t) {                       /* tray icon visibility changed */
+        if (e->atom == xa_xembed_info) tray_update_info(t);
+        return;
+    }
+    c = find_client(e->window);
     if (!c || e->window != c->win) return;
     if (e->atom == xa_net_wm_name || e->atom == XA_WM_NAME) {
         update_title(c);
@@ -1463,8 +1974,17 @@ static void handle_property_notify(XPropertyEvent *e)
 
 static void handle_client_message(XClientMessageEvent *e)
 {
-    Client *c = find_client(e->window);
+    Client *c;
     int i;
+    /* System tray docking requests are addressed to the tray owner
+     * window (the panel), not to a client. */
+    if (e->message_type == xa_net_system_tray_opcode
+        && e->window == panel) {
+        if (e->data.l[1] == 0)           /* SYSTEM_TRAY_REQUEST_DOCK */
+            tray_dock((Window)e->data.l[2]);
+        return;
+    }
+    c = find_client(e->window);
     if (!c || e->window != c->win) {
         if (e->message_type == xa_net_active_window && c) {
             /* a frame window cannot be activated; ignore */
@@ -1488,6 +2008,10 @@ static void handle_client_message(XClientMessageEvent *e)
                        || a == xa_net_wm_state_max_vert) {
                 Bool on = (action == 1) || (action == 2 && !c->maximized);
                 set_maximized(c, on);
+            } else if (a == xa_net_wm_state_skip_taskbar) {
+                Bool on = (action == 1)
+                          || (action == 2 && !c->skip_taskbar);
+                c->skip_taskbar = on;
             }
         }
         draw_panel();
@@ -1513,8 +2037,20 @@ static void dispatch(XEvent *ev)
             if (drag.c == c) { drag.c = NULL; drag.mode = 0; }
             unmanage(c, False);
             draw_panel();
+        } else if (remove_desktop(ev->xdestroywindow.window)) {
+            /* desktop layer destroyed; nothing to redraw */
+        } else if (tray_remove(ev->xdestroywindow.window)) {
+            draw_panel();          /* tray slots close up */
         }
         break;
+    case MapNotify: {
+        TrayIcon *t = find_tray_icon(ev->xmap.window);
+        if (t && !t->mapped) {     /* tray icon showed itself */
+            t->mapped = True;
+            draw_panel();
+        }
+        break;
+    }
     case PropertyNotify:
         handle_property_notify(&ev->xproperty);
         break;
@@ -1525,6 +2061,10 @@ static void dispatch(XEvent *ev)
         handle_button_press(&ev->xbutton);
         break;
     case ButtonRelease:
+        if (vol_dragging) {        /* final, exact volume value */
+            vol_set(vol_value, True);
+            vol_dragging = False;
+        }
         if (drag.c) {
             if (drag.mode) send_configure(drag.c);
             drag.c = NULL;
@@ -1535,12 +2075,16 @@ static void dispatch(XEvent *ev)
         handle_motion(&ev->xmotion);
         break;
     case KeyPress:
-        if (menu_win && XLookupKeysym(&ev->xkey, 0) == XK_Escape)
-            close_menu();
+        if (XLookupKeysym(&ev->xkey, 0) == XK_Escape) {
+            if (menu_win) close_menu();
+            else if (vol_win) close_vol_popup();
+        }
         break;
     case Expose:
         if (ev->xexpose.count != 0) break;
         if (ev->xexpose.window == panel) draw_panel();
+        else if (vol_win && ev->xexpose.window == vol_win)
+            draw_vol_popup();
         else if (menu_win && ev->xexpose.window == menu_win) draw_menu();
         else if (submenu_win && ev->xexpose.window == submenu_win)
             draw_submenu();
@@ -1613,7 +2157,7 @@ int main(void)
     Window tree_root, tree_parent, *kids;
     unsigned int nkids, i;
     unsigned long one = 1, zero = 0;
-    Atom supported[16];
+    Atom supported[24];
     int nsup = 0;
 
     signal(SIGCHLD, SIG_IGN);   /* spawned children reap themselves */
@@ -1651,10 +2195,16 @@ int main(void)
         XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_HORZ", False);
     xa_net_wm_state_max_vert =
         XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_VERT", False);
+    xa_net_wm_state_skip_taskbar =
+        XInternAtom(dpy, "_NET_WM_STATE_SKIP_TASKBAR", False);
+    xa_net_wm_state_skip_pager =
+        XInternAtom(dpy, "_NET_WM_STATE_SKIP_PAGER", False);
     xa_net_wm_window_type =
         XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
     xa_net_wm_window_type_dialog =
         XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+    xa_net_wm_window_type_desktop =
+        XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DESKTOP", False);
     xa_net_wm_window_type_dock =
         XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DOCK", False);
     xa_net_close_window = XInternAtom(dpy, "_NET_CLOSE_WINDOW", False);
@@ -1667,6 +2217,20 @@ int main(void)
     xa_net_wm_strut_partial =
         XInternAtom(dpy, "_NET_WM_STRUT_PARTIAL", False);
     xa_xrootpmap_id   = XInternAtom(dpy, "_XROOTPMAP_ID", False);
+    {
+        char tray_name[64];
+        snprintf(tray_name, sizeof tray_name, "_NET_SYSTEM_TRAY_S%d", scr);
+        xa_net_system_tray_s0 = XInternAtom(dpy, tray_name, False);
+    }
+    xa_net_system_tray_opcode =
+        XInternAtom(dpy, "_NET_SYSTEM_TRAY_OPCODE", False);
+    xa_net_system_tray_orientation =
+        XInternAtom(dpy, "_NET_SYSTEM_TRAY_ORIENTATION", False);
+    xa_net_system_tray_visual =
+        XInternAtom(dpy, "_NET_SYSTEM_TRAY_VISUAL", False);
+    xa_manager        = XInternAtom(dpy, "MANAGER", False);
+    xa_xembed         = XInternAtom(dpy, "_XEMBED", False);
+    xa_xembed_info    = XInternAtom(dpy, "_XEMBED_INFO", False);
 
     /* Colours */
     px_panel_bg   = color_pixel(COL_PANEL_BG);
@@ -1679,6 +2243,7 @@ int main(void)
     px_task_on    = color_pixel(COL_TASK_ON);
     px_task_off   = color_pixel(COL_TASK_OFF);
     px_desktop    = color_pixel(COL_DESKTOP);
+    px_text       = color_pixel(COL_TEXT);
     xft_color(COL_TEXT, &col_text);
     xft_color(COL_TEXT_DIM, &col_dim);
 
@@ -1692,6 +2257,7 @@ int main(void)
     }
 
     create_panel();
+    tray_init();
     set_wallpaper(WALLPAPER_DEFAULT);
 
     XSelectInput(dpy, root, SubstructureRedirectMask
@@ -1711,7 +2277,10 @@ int main(void)
     supported[nsup++] = xa_net_wm_state_fullscreen;
     supported[nsup++] = xa_net_wm_state_max_horz;
     supported[nsup++] = xa_net_wm_state_max_vert;
+    supported[nsup++] = xa_net_wm_state_skip_taskbar;
+    supported[nsup++] = xa_net_wm_state_skip_pager;
     supported[nsup++] = xa_net_wm_window_type;
+    supported[nsup++] = xa_net_wm_window_type_desktop;
     supported[nsup++] = xa_net_wm_strut_partial;
     XChangeProperty(dpy, root, xa_net_supported, XA_ATOM, 32,
                     PropModeReplace, (unsigned char *)supported, nsup);
@@ -1737,6 +2306,7 @@ int main(void)
     event_loop();
 
     /* Clean exit (CLIに戻る): hand every window back to the root. */
+    if (vol_win) close_vol_popup();
     if (menu_win) close_menu();
     while (clients)
         unmanage(clients, True);
