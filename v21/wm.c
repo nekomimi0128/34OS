@@ -19,6 +19,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
+#include <X11/cursorfont.h>
 #include <X11/Xft/Xft.h>
 
 #include <dirent.h>
@@ -122,6 +123,7 @@ static unsigned long px_panel_bg, px_panel_line, px_title_on,
     px_task_on, px_task_off, px_desktop;
 
 static Window panel;               /* our panel window             */
+static Cursor cur_arrow;           /* XC_left_ptr, set on root/panel/frames */
 static Window menu_win;            /* start menu window (0=closed) */
 static Window submenu_win;         /* submenu window (0=closed)    */
 static int menu_hover = -1;        /* hovered main-menu index      */
@@ -733,6 +735,7 @@ static void manage(Window w)
                  ExposureMask | ButtonPressMask | ButtonReleaseMask
                  | PointerMotionMask | SubstructureRedirectMask
                  | SubstructureNotifyMask);
+    XDefineCursor(dpy, c->frame, cur_arrow);
     XSelectInput(dpy, w,
                  EnterWindowMask | PropertyChangeMask | FocusChangeMask
                  | StructureNotifyMask);
@@ -1054,6 +1057,7 @@ static void create_panel(void)
                           CWOverrideRedirect | CWBackPixel | CWEventMask,
                           &attr);
     XSetWindowBorder(dpy, panel, px_panel_line);
+    XDefineCursor(dpy, panel, cur_arrow);
     XChangeProperty(dpy, panel, xa_net_wm_window_type, XA_ATOM, 32,
                     PropModeReplace,
                     (unsigned char *)&xa_net_wm_window_type_dock, 1);
@@ -1199,7 +1203,7 @@ static void open_menu(void)
      * Escape key reach us wherever the pointer is. */
     XGrabPointer(dpy, root, False,
                  ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-                 GrabModeAsync, GrabModeAsync, None, None, CurrentTime);
+                 GrabModeAsync, GrabModeAsync, None, cur_arrow, CurrentTime);
     XGrabKeyboard(dpy, root, False, GrabModeAsync, GrabModeAsync,
                   CurrentTime);
     draw_menu();
@@ -1624,6 +1628,12 @@ int main(void)
     sw = DisplayWidth(dpy, scr);
     sh = DisplayHeight(dpy, scr);
     XSetErrorHandler(xerror);
+
+    /* Pointer cursor: without a WM-defined cursor the root window can
+     * end up with an invisible pointer (found on the dynabook test:
+     * Fluxbox used to provide the arrow for us). */
+    cur_arrow = XCreateFontCursor(dpy, XC_left_ptr);
+    XDefineCursor(dpy, root, cur_arrow);
 
     /* Atoms */
     xa_wm_protocols   = XInternAtom(dpy, "WM_PROTOCOLS", False);
