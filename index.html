@@ -78,6 +78,15 @@
   }
   .hero .tag { color: var(--sub); margin: 1.2rem auto 0; max-width: 560px; }
 
+  .teaser { text-align: center; padding: 4rem 1rem 1.5rem; }
+  .teaser-line { font-size: clamp(1.7rem, 5.2vw, 2.7rem); font-weight: 700; letter-spacing: .06em; margin: 0; line-height: 1.5; }
+  .teaser .reel {
+    display: inline-block; min-width: 3.4em; text-align: center;
+    color: var(--accent2); border-bottom: 2px solid var(--accent2);
+  }
+  .teaser .reel.spin { filter: blur(1.2px); }
+  .teaser-sub { color: var(--sub); letter-spacing: .4em; font-size: .85rem; margin: 1.4rem 0 0; }
+
   main { max-width: 920px; margin: 0 auto; padding: 1rem 1rem 3rem; }
   section { margin-bottom: 3.2rem; }
   .fade { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
@@ -162,6 +171,11 @@
   <p class="term" id="term"></p>
   <p class="tag">Puppy Linux 以下の軽さを目指す、Ubuntu 互換の個人開発 Linux ディストリビューション。<br>名前の由来は「サンヨン = 3・4」。</p>
 </div>
+
+<section class="teaser fade">
+  <p class="teaser-line">1号機として、ふさわしい<span class="reel spin"><span id="reelWord">姿</span></span>を。</p>
+  <p class="teaser-sub">34OS v2.2 — TopNumber</p>
+</section>
 
 <main>
   <section class="fade">
@@ -358,6 +372,20 @@
       setTimeout(step, del ? 30 : 75);
     }
     step();
+  })();
+
+  // teaser word reel: the dev team's words, spinning too fast to read
+  (function () {
+    var words = ['姿','形','顔','表情','佇まい','走り','軽さ','速さ','静けさ','軽快さ','鋭さ','切れ味','鼓動','脈動','響き','足音','汽笛','蒸気','煙','動輪','軌道','轍','風格','品格','気品','威厳','貫禄','存在感','矜持','誇り','魂','心','熱','力','強さ','安定感','正確さ','鮮明さ','解像度','統一感','完成度','名前','称号','座','頂点','始まり','目覚め','息吹','未来'];
+    var el = document.getElementById('reelWord');
+    if (!el) return;
+    var last = -1;
+    setInterval(function () {
+      var i;
+      do { i = Math.floor(Math.random() * words.length); } while (i === last);
+      last = i;
+      el.textContent = words[i];
+    }, 55);
   })();
 
   // fade-in on scroll
