@@ -36,12 +36,29 @@
   }
   .reel {
     display: inline-block;
-    min-width: 3.4em;
+    width: 3.4em;
+    height: 1.5em;
+    overflow: hidden;
+    vertical-align: -0.32em;
     text-align: center;
     color: #e6c87a;
     border-bottom: 2px solid #e6c87a;
   }
-  .reel.spin { filter: blur(1.2px); }
+  .reel-track {
+    display: block;
+    filter: blur(2px);
+    opacity: .92;
+    animation: reelspin 2.6s linear infinite;
+  }
+  .reel-track span {
+    display: block;
+    height: 1.5em;
+    line-height: 1.5em;
+  }
+  @keyframes reelspin {
+    from { transform: translateY(0); }
+    to { transform: translateY(-50%); }
+  }
   .teaser-sub {
     color: #93a3b5;
     letter-spacing: .4em;
@@ -58,7 +75,7 @@
 <canvas id="stars"></canvas>
 
 <div class="teaser">
-  <p class="teaser-line">1号機として、ふさわしい<span class="reel spin"><span id="reelWord">姿</span></span>を。</p>
+  <p class="teaser-line">1号機として、ふさわしい<span class="reel"><span class="reel-track" id="reelTrack"></span></span>を。</p>
   <p class="teaser-sub">34OS v2.2 — TopNumber</p>
 </div>
 
@@ -84,17 +101,16 @@
     addEventListener('resize', resize); resize(); requestAnimationFrame(tick);
   })();
 
-  // teaser word reel: the dev team's words, spinning too fast to read
+  // teaser word reel: the dev team's words on a fast vertical drum,
+  // blurred into streaks so no single word can be read
   (function () {
     var words = ['姿','形','顔','表情','佇まい','走り','軽さ','速さ','静けさ','軽快さ','鋭さ','切れ味','鼓動','脈動','響き','足音','汽笛','蒸気','煙','動輪','軌道','轍','風格','品格','気品','威厳','貫禄','存在感','矜持','誇り','魂','心','熱','力','強さ','安定感','正確さ','鮮明さ','解像度','統一感','完成度','名前','称号','座','頂点','始まり','目覚め','息吹','未来'];
-    var el = document.getElementById('reelWord');
-    var last = -1;
-    setInterval(function () {
-      var i;
-      do { i = Math.floor(Math.random() * words.length); } while (i === last);
-      last = i;
-      el.textContent = words[i];
-    }, 55);
+    var track = document.getElementById('reelTrack');
+    var html = '';
+    for (var r = 0; r < 2; r++)
+      for (var i = 0; i < words.length; i++)
+        html += '<span>' + words[i] + '</span>';
+    track.innerHTML = html;
   })();
 </script>
 </body>
