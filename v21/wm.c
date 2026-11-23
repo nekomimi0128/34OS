@@ -2,9 +2,11 @@
  * 34os-wm - the 34OS v2.1 window manager + panel (single-file X11 program)
  *
  * A small reparenting window manager with a built-in bottom panel:
- * start button + start menu, task buttons, simple indicators and a
- * JST clock. Written against Xlib + Xft only (PNG wallpaper loading
- * uses Imlib2 when built with HAVE_IMLIB2, plain colour otherwise).
+ * start button + start menu, task buttons, built-in status
+ * indicators (hotspot / network / volume / battery, polled from
+ * NetworkManager, /sys and amixer) and a JST clock. Written against
+ * Xlib + Xft only (PNG wallpaper loading uses Imlib2 when built
+ * with HAVE_IMLIB2, plain colour otherwise).
  *
  * Design rules (fixed by the 34OS spec):
  *   - flat, dark charcoal + white line art. No rounded corners,
@@ -319,6 +321,114 @@ static int read_network(int *is_wifi)
     return up;
 }
 
+/* --- NetworkManager state: hotspot （共感通信） + Wi-Fi SSID ------ */
+
+/* Results of the last nmcli poll (see read_nm_state). While
+ * ind_nm_valid is 0 the panel falls back to the /sys-based state
+ * from read_network() and the hotspot indicator is not shown. */
+static int  ind_hotspot  = -1;  /* -1 unknown, 0 = off, 1 = on     */
+static int  ind_nm_valid = 0;   /* nmcli answered at the last poll */
+static int  ind_nm_wired = 0;   /* an ethernet connection is up    */
+static char ind_ssid[64] = "";  /* active Wi-Fi SSID (client mode) */
+
+/* Is this the connection name `nmcli device wifi hotspot` creates?
+ * ("Hotspot", or numbered variants "Hotspot 1" / "Hotspot-2".) */
+static int is_hotspot_name(const char *name)
+{
+    const char *p;
+    if (strcmp(name, "Hotspot") == 0) return 1;
+    if (strncmp(name, "Hotspot", 7) != 0) return 0;
+    p = name + 7;
+    if (*p != ' ' && *p != '-') return 0;
+    p++;
+    if (!*p) return 0;
+    for (; *p; p++)
+        if (*p < '0' || *p > '9') return 0;
+    return 1;
+}
+
+/* Copy an nmcli -t field into dst, undoing the \: and \\ escapes.
+ * The copy never splits a UTF-8 sequence at the cut point, so a
+ * long Japanese SSID truncates cleanly instead of drawing tofu. */
+static void nm_copy(char *dst, size_t dsz, const char *src)
+{
+    size_t n = 0, i, cont;
+    const char *p;
+    for (p = src; *p && n + 1 < dsz; p++) {
+        char c = *p;
+        if (c == '\\' && (p[1] == ':' || p[1] == '\\')) c = *++p;
+        dst[n++] = c;
+    }
+    dst[n] = '\0';
+    if (n == 0) return;
+    i = n;
+    cont = 0;
+    while (i > 0 && (dst[i - 1] & 0xC0) == 0x80) { i--; cont++; }
+    if (i > 0 && (dst[i - 1] & 0x80)) {
+        unsigned char lead = (unsigned char)dst[i - 1];
+        int expect = (lead >= 0xF0) ? 4 : (lead >= 0xE0) ? 3 : 2;
+        if ((int)cont + 1 < expect) dst[i - 1] = '\0';
+    }
+}
+
+/* Poll NetworkManager for the hotspot state and the Wi-Fi SSID.
+ * The live session runs with a restricted PATH, so nmcli is called
+ * by its absolute path; if that fails outright (e.g. a test host
+ * with no NetworkManager), a PATH lookup is tried once, which also
+ * lets the test suite substitute a fake nmcli. On total failure
+ * ind_nm_valid is cleared and the panel falls back gracefully.
+ *
+ * Success is detected with a sentinel line ("... && echo OK"):
+ * main() sets SIGCHLD to SIG_IGN, so pclose() cannot report the
+ * child's exit status (it returns -1), and an empty connection
+ * list is a valid result that must not look like a failure. */
+static void read_nm_state(void)
+{
+    static const char *cmds[] = {
+        "/usr/bin/nmcli -t -f NAME,TYPE connection show --active"
+        " 2>/dev/null && echo __34OS_NM_OK__",
+        "nmcli -t -f NAME,TYPE connection show --active"
+        " 2>/dev/null && echo __34OS_NM_OK__",
+    };
+    size_t ci;
+    for (ci = 0; ci < sizeof cmds / sizeof cmds[0]; ci++) {
+        FILE *fp = popen(cmds[ci], "r");
+        char line[256];
+        char ssid[sizeof ind_ssid] = "";
+        int hotspot = 0, wired = 0, ok = 0;
+        if (!fp) continue;
+        while (fgets(line, sizeof line, fp)) {
+            char name[sizeof ind_ssid];
+            char *colon;
+            const char *type;
+            line[strcspn(line, "\n")] = '\0';
+            if (strcmp(line, "__34OS_NM_OK__") == 0) { ok = 1; continue; }
+            colon = strrchr(line, ':');
+            if (!colon) continue;
+            *colon = '\0';
+            type = colon + 1;
+            nm_copy(name, sizeof name, line);
+            if (strcmp(type, "802-11-wireless") == 0) {
+                if (is_hotspot_name(name)) hotspot = 1;
+                else if (!ssid[0]) strcpy(ssid, name);
+            } else if (strcmp(type, "802-3-ethernet") == 0) {
+                wired = 1;
+            }
+        }
+        pclose(fp);
+        if (ok) {
+            ind_hotspot = hotspot;
+            ind_nm_wired = wired;
+            strcpy(ind_ssid, ssid);
+            ind_nm_valid = 1;
+            return;
+        }
+    }
+    ind_nm_valid = 0;
+    ind_hotspot = -1;
+    ind_ssid[0] = '\0';
+}
+
 /* Volume 0-100 from amixer, or -1 when unavailable. When muted is
  * non-NULL it receives the [on]/[off] switch state of the same
  * control line. Polled at most once every few seconds by the panel
@@ -347,8 +457,9 @@ static int read_volume(void)
     return read_volume_ex(NULL);
 }
 
-/* "11/21 (土)" style date + "15:52" time, from local time (the OS
- * pins the timezone to Asia/Tokyo, so local time is JST). */
+/* "11月23日（月）" style date + "15:52" time, from local time (the
+ * OS pins the timezone to Asia/Tokyo, so local time is JST). The
+ * wording matches the v2.1 UI prototype's panel clock. */
 static void format_clock(char *date_out, size_t dsz,
                          char *time_out, size_t tsz)
 {
@@ -356,7 +467,7 @@ static void format_clock(char *date_out, size_t dsz,
     time_t t = time(NULL);
     struct tm tmv;
     localtime_r(&t, &tmv);
-    snprintf(date_out, dsz, "%d/%d (%s)", tmv.tm_mon + 1, tmv.tm_mday,
+    snprintf(date_out, dsz, "%d月%d日（%s）", tmv.tm_mon + 1, tmv.tm_mday,
              wday[tmv.tm_wday]);
     snprintf(time_out, tsz, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
 }
@@ -1200,9 +1311,14 @@ static int ind_wifi    = 0;
 static void refresh_indicators(Bool force)
 {
     static time_t last_vol = 0;
+    static time_t last_nm = 0;
     time_t now = time(NULL);
     ind_battery = read_battery();
     ind_net_up = read_network(&ind_wifi);
+    if (force || now - last_nm >= 2) {    /* nmcli is a subprocess */
+        read_nm_state();
+        last_nm = now;
+    }
     if (force || now - last_vol >= 5) {   /* amixer is a subprocess */
         ind_volume = read_volume();
         last_vol = now;
@@ -1238,10 +1354,11 @@ static void draw_panel(void)
     GC gc = DefaultGC(dpy, scr);
     Client *c;
     char date[32], timestr[16], clockbuf[64];
-    char ind[3][40];
-    int ind_ws[3];
+    char ind[5][64];
+    int ind_ws[5];
     int ind_n = 0, ind_w_total = 0, clock_w, ind_x, tasks_right;
-    int vol_idx = -1, tray_tw;
+    int vol_idx = -1, net_idx = -1, tray_tw;
+    Bool net_down = False;
     int n, i, tx, avail, bw;
 
     if (!panel) return;
@@ -1253,10 +1370,34 @@ static void draw_panel(void)
     snprintf(clockbuf, sizeof clockbuf, "%s  %s", date, timestr);
     clock_w = text_w(font_big, clockbuf);
 
-    if (ind_net_up)
-        snprintf(ind[ind_n], sizeof ind[0], "%s", ind_wifi ? "WiFi" : "有線");
-    else
+    /* Built-in status indicators, prototype style: the panel speaks
+     * for itself instead of relying on foreign tray applets. Order
+     * matches the UI prototype: hotspot, network, volume, battery,
+     * then the clock at the right edge. */
+    if (ind_nm_valid) {
+        snprintf(ind[ind_n], sizeof ind[0], "共感通信 %s",
+                 ind_hotspot > 0 ? "ON" : "OFF");
+        ind_n++;
+    }
+    net_idx = ind_n;
+    if (ind_nm_valid) {
+        if (ind_ssid[0])
+            snprintf(ind[ind_n], sizeof ind[0], "%s", ind_ssid);
+        else if (ind_nm_wired)
+            snprintf(ind[ind_n], sizeof ind[0], "%s", "有線");
+        else if (ind_hotspot > 0)
+            snprintf(ind[ind_n], sizeof ind[0], "%s", "接続済み");
+        else {
+            snprintf(ind[ind_n], sizeof ind[0], "%s", "未接続");
+            net_down = True;
+        }
+    } else if (ind_net_up) {
+        snprintf(ind[ind_n], sizeof ind[0], "%s",
+                 ind_wifi ? "接続済み" : "有線");
+    } else {
         snprintf(ind[ind_n], sizeof ind[0], "%s", "未接続");
+        net_down = True;
+    }
     ind_n++;
     if (ind_volume >= 0) {
         vol_idx = ind_n;
@@ -1335,7 +1476,7 @@ static void draw_panel(void)
 
     /* Indicators + clock. */
     for (i = 0; i < ind_n; i++) {
-        const XftColor *col = (i == 0 && !ind_net_up) ? &col_dim : &col_text;
+        const XftColor *col = (i == net_idx && net_down) ? &col_dim : &col_text;
         if (i == vol_idx) { vol_ind_x = ind_x; vol_ind_w = ind_ws[i]; }
         draw_text(panel, font, col, ind_x,
                   centred_baseline(font, 0, PANEL_H), ind[i]);
@@ -1722,6 +1863,9 @@ static void close_vol_popup(void)
     vol_last_applied = -1;
     XUngrabPointer(dpy, CurrentTime);
     XUngrabKeyboard(dpy, CurrentTime);
+    /* Keep the panel's volume text in sync with what the popup just
+     * applied, instead of waiting for the next amixer poll. */
+    if (vol_value >= 0) ind_volume = vol_value;
     draw_panel();
 }
 

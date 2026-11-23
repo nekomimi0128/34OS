@@ -63,6 +63,11 @@ in_chroot apt-get install -y --no-install-recommends \
   iproute2 iputils-ping less man-db fbterm fonts-vlgothic kbd \
   grub-pc-bin grub-efi-amd64-bin grub-common grub2-common os-prober dosfstools squashfs-tools parted efibootmgr
 
+# v2.1c recovery: framebuffer image viewer for the boot-time Recovery
+# screen (rendered further below). It is only ever run inside the
+# initramfs, from live-boot's medium-not-found failure path.
+in_chroot apt-get install -y --no-install-recommends fbi
+
 # v2: GUI pack (X + Fluxbox + apps + Japanese input + network + sound)
 in_chroot apt-get install -y --no-install-recommends \
   xserver-xorg-core xserver-xorg-legacy xserver-xorg-input-libinput xserver-xorg-video-fbdev xserver-xorg-video-vesa \
@@ -98,15 +103,73 @@ for p in libimlib2t64 libimlib2; do
   fi
 done
 in_chroot apt-get install -y --no-install-recommends \
-  gcc pkg-config libx11-dev libxft-dev libfreetype-dev libimlib2-dev
+  gcc pkg-config libx11-dev libxft-dev libfreetype-dev libimlib2-dev python3-pil
 sudo cp ./v21/wm.c "$ROOTFS/tmp/wm.c"
 in_chroot bash -c 'gcc -O2 -Wall -Wextra -DHAVE_IMLIB2 -o /usr/local/bin/34os-wm /tmp/wm.c $(pkg-config --cflags --libs x11 xft) -lImlib2'
 sudo rm -f "$ROOTFS/tmp/wm.c"
 sudo cp ./v21/bsod.c "$ROOTFS/tmp/bsod.c"
 in_chroot bash -c 'gcc -O2 -Wall -Wextra -o /usr/local/bin/34os-bsod /tmp/bsod.c $(pkg-config --cflags --libs x11 xft)'
 sudo rm -f "$ROOTFS/tmp/bsod.c"
+
+# v2.1c recovery: render the boot-time Recovery screen now, while the
+# build chroot is up, using the image's own BIZ UDGothic. The PNG is
+# shown from the initramfs if the live medium is not found, a moment
+# when no font stack is available yet. python3-pil is a build-only
+# tool and is purged with the toolchain below.
+sudo mkdir -p "$ROOTFS/usr/share/34os"
+sudo tee "$ROOTFS/tmp/render-recovery.py" >/dev/null <<'EOFPY'
+import glob
+import sys
+
+from PIL import Image, ImageDraw, ImageFont
+
+
+def find_font(bold):
+    names = ["BIZUDGothic-Bold.ttf", "BIZUDGothic-Regular.ttf"]
+    if not bold:
+        names.reverse()
+    for name in names:
+        hits = sorted(glob.glob("/usr/share/fonts/**/" + name, recursive=True))
+        if hits:
+            return hits[0]
+    return None
+
+
+bold = find_font(True)
+regular = find_font(False)
+if not bold or not regular:
+    sys.exit("ERROR: BIZ UDGothic fonts not found in the image")
+
+img = Image.new("RGB", (1920, 1080), (0, 0, 0))
+d = ImageDraw.Draw(img)
+x = 60
+y = 64
+d.text((x, y), "回復", font=ImageFont.truetype(bold, 90), fill=(255, 255, 255))
+y += 150
+d.text((x, y), "34OS が正しく読み込まれませんでした",
+       font=ImageFont.truetype(bold, 40), fill=(255, 255, 255))
+y += 64
+body = ImageFont.truetype(regular, 27)
+d.text((x, y), "要求されたデバイスが接続されていないため、起動に失敗しました",
+       font=body, fill=(255, 255, 255))
+y += 90
+d.text((x, y), "STATUSコード： ROOT_USB_NOT_FOUND", font=body, fill=(255, 255, 255))
+y += 48
+d.text((x, y), "Live USBを正しく接続してください", font=body, fill=(255, 255, 255))
+y += 90
+d.text((x, y), "Live USBを挿しなおすか、正しく接続されているかを確かめて、やり直してください",
+       font=body, fill=(255, 255, 255))
+img.save("/usr/share/34os/recovery.png")
+print("34OS: recovery.png rendered")
+EOFPY
+in_chroot python3 /tmp/render-recovery.py
+sudo rm -f "$ROOTFS/tmp/render-recovery.py"
+if [ ! -f "$ROOTFS/usr/share/34os/recovery.png" ]; then
+  echo "ERROR: /usr/share/34os/recovery.png was not rendered" >&2
+  exit 1
+fi
 in_chroot apt-get remove --purge -y \
-  gcc pkg-config libx11-dev libxft-dev libfreetype-dev libimlib2-dev
+  gcc pkg-config libx11-dev libxft-dev libfreetype-dev libimlib2-dev python3-pil
 in_chroot apt-get autoremove --purge -y
 in_chroot dpkg-query -W -f='${Package}\n' | sort > /tmp/34os-pkg-after.txt || true
 echo "--- packages removed with the WM toolchain (before/after diff) ---"
@@ -603,6 +666,88 @@ in_chroot bash -c 'for v in /usr/lib/modules/*; do depmod -a "$(basename "$v")";
 # the driver asks for its own max API and walks down, and every
 # version it can ask for stays on disk.
 in_chroot bash -c 'rm -f /usr/lib/firmware/intel/iwlwifi/*-c9[1-9].ucode.zst /usr/lib/firmware/intel/iwlwifi/*-c10[0-9].ucode.zst /usr/lib/firmware/intel/iwlwifi/*-9[1-9].ucode.zst /usr/lib/firmware/intel/iwlwifi/*-10[0-9].ucode.zst' || true
+# ============ v2.1c: boot-time Recovery screen ============
+# When live-boot cannot find the live medium it panics with "Unable
+# to find a medium containing a live file system" and drops to a bare
+# busybox shell. Patch that failure path (in the rootfs copy of
+# live-boot's 9990-main.sh, which live-boot's own initramfs hook
+# copies verbatim into the initramfs) to run /bin/34os-recovery
+# first: it displays the pre-rendered Recovery screen full-screen
+# and stays there. If the screen cannot be shown (no framebuffer,
+# no viewer), it returns and the normal panic proceeds. Normal
+# boots never reach the patched line. The build fails loudly if
+# the anchor text is not found, so a live-boot update cannot
+# silently drop this feature.
+sudo tee "$ROOTFS/usr/share/34os/34os-recovery" >/dev/null <<'EOFREC'
+#!/bin/sh
+# 34OS: boot-time Recovery screen (live medium not found).
+# Runs inside the initramfs, called from live-boot's failure path.
+# Shows the pre-rendered Recovery screen and never returns; if the
+# screen cannot be shown, returns so the normal panic proceeds.
+[ -e /dev/fb0 ] || exit 0
+[ -x /usr/bin/fbi ] || exit 0
+[ -f /usr/share/34os/recovery.png ] || exit 0
+# Keep the console from blanking while the screen is up (best effort).
+{ echo 0 > /sys/module/kernel/parameters/consoleblank; } 2>/dev/null || true
+# fbi must run in the foreground, with the console as its stdin.
+# Backgrounded, the shell feeds it /dev/null instead, and fbi dies
+# on its VT ioctl ("VT_GETSTATE: not a linux console"). If fbi is
+# gone again within a few seconds it never got the image up, so
+# fall through to the normal panic; once it has displayed, hold
+# the screen until power off.
+START=$(date +%s)
+/usr/bin/fbi -a --noverbose -d /dev/fb0 /usr/share/34os/recovery.png </dev/console
+if [ $(( $(date +%s) - START )) -lt 3 ]; then
+  exit 0
+fi
+while :; do sleep 3600; done
+EOFREC
+sudo chmod +x "$ROOTFS/usr/share/34os/34os-recovery"
+sudo mkdir -p "$ROOTFS/etc/initramfs-tools/hooks"
+sudo tee "$ROOTFS/etc/initramfs-tools/hooks/34os-recovery" >/dev/null <<'EOFREC'
+#!/bin/sh
+# 34OS: put the Recovery screen viewer, image and script into the
+# initramfs. Used only when live-boot cannot find the live medium.
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case "$1" in
+  prereqs) prereqs; exit 0 ;;
+esac
+. /usr/share/initramfs-tools/hook-functions
+copy_exec /usr/bin/fbi /usr/bin/fbi
+mkdir -p "${DESTDIR}/bin" "${DESTDIR}/usr/share/34os"
+cp -a /usr/share/34os/34os-recovery "${DESTDIR}/bin/34os-recovery"
+chmod +x "${DESTDIR}/bin/34os-recovery"
+cp -a /usr/share/34os/recovery.png "${DESTDIR}/usr/share/34os/recovery.png"
+# fbi wants a fontconfig setup even with its status line hidden;
+# give it the image's fonts.conf and one BIZ UDGothic face.
+if [ -f /etc/fonts/fonts.conf ]; then
+  mkdir -p "${DESTDIR}/etc/fonts"
+  cp -a /etc/fonts/fonts.conf "${DESTDIR}/etc/fonts/fonts.conf"
+fi
+for _TTF in /usr/share/fonts/truetype/*/BIZUDGothic-Regular.ttf; do
+  if [ -f "$_TTF" ]; then
+    mkdir -p "${DESTDIR}/usr/share/fonts/truetype/34os"
+    cp -a "$_TTF" "${DESTDIR}/usr/share/fonts/truetype/34os/"
+  fi
+done
+EOFREC
+sudo chmod +x "$ROOTFS/etc/initramfs-tools/hooks/34os-recovery"
+RECOVERY_PATCHED=0
+for f in "$ROOTFS/usr/share/initramfs-tools/scripts/live" "$ROOTFS"/lib/live/boot/*.sh; do
+  [ -f "$f" ] || continue
+  if grep -q 'panic "Unable to find a medium containing a live file system"' "$f"; then
+    sudo sed -i '/panic "Unable to find a medium containing a live file system"/i [ -x /bin/34os-recovery ] && /bin/34os-recovery' "$f"
+    if grep -q '34os-recovery' "$f"; then
+      RECOVERY_PATCHED=1
+    fi
+  fi
+done
+if [ "$RECOVERY_PATCHED" != 1 ]; then
+  echo "ERROR: live-boot panic anchor not found; the Recovery screen patch did not apply" >&2
+  exit 1
+fi
+
 # xz-compressed initramfs: a smaller live initrd for some boot CPU.
 sudo printf 'COMPRESS=xz\n' | sudo tee "$ROOTFS/etc/initramfs-tools/conf.d/34os-compress.conf" >/dev/null
 in_chroot update-initramfs -u || true
