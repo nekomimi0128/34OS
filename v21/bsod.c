@@ -19,7 +19,7 @@ static int scr;
 static Window root, win;
 static Pixmap pix;
 static int sw, sh;
-static XftFont *font_face, *font_title, *font_body, *font_small;
+static XftFont *font_head, *font_title, *font_body;
 static XftColor white;
 
 static XftFont *load_font(const char *spec)
@@ -53,15 +53,11 @@ static void render(void)
     Visual *vis = DefaultVisual(dpy, scr);
     Colormap cmap = DefaultColormap(dpy, scr);
 
-    /* BSOD blue background, filled while the disk is still there. */
-    XColor xc;
-    xc.red = 0;
-    xc.green = 120 * 257;
-    xc.blue = 215 * 257;
-    xc.flags = DoRed | DoGreen | DoBlue;
-    XAllocColor(dpy, cmap, &xc);
+    /* Black background, filled while the disk is still there.
+     * Same visual style as the boot-time Recovery screen:
+     * white BIZ UDGothic text, left-aligned, on plain black. */
     GC gc = XCreateGC(dpy, pix, 0, NULL);
-    XSetForeground(dpy, gc, xc.pixel);
+    XSetForeground(dpy, gc, BlackPixel(dpy, scr));
     XFillRectangle(dpy, pix, gc, 0, 0, (unsigned)sw, (unsigned)sh);
     XFreeGC(dpy, gc);
 
@@ -71,20 +67,21 @@ static void render(void)
     if (!draw)
         return;
 
-    int x = sw / 10;
-    int y = sh / 4;
-    y = draw_line(draw, font_face, x, y, ":(");
-    y += sh / 20;
+    int x = sw * 60 / 1920; /* 60px left margin at 1920 wide */
+    int y = sh / 6 + font_head->ascent;
+    y = draw_line(draw, font_head, x, y, "停止");
+    y += sh / 30;
     y = draw_line(draw, font_title, x, y,
                   "問題が発生したため、34OS を停止しました");
-    y += 16;
+    y += sh / 40;
     y = draw_line(draw, font_body, x, y,
                   "USBメモリとの接続が切れました。");
+    y += sh / 40;
     y = draw_line(draw, font_body, x, y,
-                  "USBメモリを差し直してから、電源ボタンで再起動してください。");
-    (void)y;
-    draw_line(draw, font_small, x, sh - 48,
-              "エラー [USB-REMOVED]: 起動メディアが取り外されました");
+                  "エラー [USB-REMOVED]: 起動メディアが取り外されました");
+    y += sh / 40;
+    draw_line(draw, font_body, x, y,
+              "USBメモリを差し直してから、電源ボタンで再起動してください。");
     XftDrawDestroy(draw);
 }
 
@@ -105,11 +102,16 @@ int main(int argc, char **argv)
     sw = DisplayWidth(dpy, scr);
     sh = DisplayHeight(dpy, scr);
 
-    font_face = load_font("size=140");
-    font_title = load_font("size=36");
-    font_body = load_font("size=22");
-    font_small = load_font("size=16");
-    if (!font_face || !font_title || !font_body || !font_small)
+    /* Sizes mirror the Recovery screen at 1080p (90/40/27),
+     * scaled to the actual display height. */
+    char spec[64];
+    snprintf(spec, sizeof(spec), "size=%d:weight=bold", sh / 12);
+    font_head = load_font(spec);
+    snprintf(spec, sizeof(spec), "size=%d:weight=bold", sh / 27);
+    font_title = load_font(spec);
+    snprintf(spec, sizeof(spec), "size=%d", sh / 40);
+    font_body = load_font(spec);
+    if (!font_head || !font_title || !font_body)
         return 0;
 
     XSetWindowAttributes attr;
