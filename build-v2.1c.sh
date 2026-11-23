@@ -114,6 +114,9 @@ in_chroot apt-get install -y --no-install-recommends \
 sudo cp ./v21/wm.c "$ROOTFS/tmp/wm.c"
 in_chroot bash -c 'gcc -O2 -Wall -Wextra -DHAVE_IMLIB2 -o /usr/local/bin/34os-wm /tmp/wm.c $(pkg-config --cflags --libs x11 xft) -lImlib2'
 sudo rm -f "$ROOTFS/tmp/wm.c"
+sudo cp ./v21/bsod.c "$ROOTFS/tmp/bsod.c"
+in_chroot bash -c 'gcc -O2 -Wall -Wextra -o /usr/local/bin/34os-bsod /tmp/bsod.c $(pkg-config --cflags --libs x11 xft)'
+sudo rm -f "$ROOTFS/tmp/bsod.c"
 in_chroot apt-get remove --purge -y \
   gcc pkg-config libx11-dev libxft-dev libfreetype-dev libimlib2-dev
 in_chroot apt-get autoremove --purge -y
@@ -125,6 +128,11 @@ comm -13 /tmp/34os-pkg-before.txt /tmp/34os-pkg-after.txt || true
 if in_chroot ldd /usr/local/bin/34os-wm | grep -q "not found"; then
   echo "ERROR: 34os-wm has unresolved libraries after the toolchain purge" >&2
   in_chroot ldd /usr/local/bin/34os-wm >&2 || true
+  exit 1
+fi
+if in_chroot ldd /usr/local/bin/34os-bsod | grep -q "not found"; then
+  echo "ERROR: 34os-bsod has unresolved libraries after the toolchain purge" >&2
+  in_chroot ldd /usr/local/bin/34os-bsod >&2 || true
   exit 1
 fi
 
@@ -729,13 +737,17 @@ BOOTDEV=$(/usr/bin/findmnt -n -o SOURCE "$m" 2>/dev/null)
 [ -n "$BOOTDEV"] && break
 fi
 done
+# The stop screen pre-renders at startup and takes over the display
+# if the boot device disappears (34os-bsod polls it from here on).
+if [ -n "$BOOTDEV"] && [ -x /usr/local/bin/34os-bsod]; then
+/usr/local/bin/34os-bsod "$BOOTDEV" &
+fi
 notify "34OSはUSBメモリから起動しています
 終了するまで、USBメモリを絶対に抜かないでください。途中で抜くとシステムが停止したり、USBメモリが壊れたりすることがあります"
 fi
 
 warned20=0
 warned10=0
-usb_warned=0
 while true; do
 for cap in /sys/class/power_supply/BAT*/capacity; do
 [ -r "$cap"] || continue
@@ -760,11 +772,6 @@ notify "バッテリー残量が少なくなっています
 warned20=1
 fi
 done
-if [ "$LIVE" = 1] && [ -n "$BOOTDEV"] && [ "$usb_warned" = 0] && [! -b "$BOOTDEV"]; then
-notify "USBメモリとの接続が切れました
-すぐに差し直してください。そのままにするとシステムが停止することがあります"
-usb_warned=1
-fi
 /bin/sleep 15
 done
 EOF2
