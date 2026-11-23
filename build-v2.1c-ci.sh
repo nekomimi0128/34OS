@@ -700,6 +700,65 @@ esac
 EOF2
 sudo chmod +x "$ROOTFS/usr/local/bin/34os-hotspot"
 
+# notice watcher (low battery + live-USB warnings; started from .xinitrc)
+sudo tee "$ROOTFS/usr/local/bin/34os-notice-watch" >/dev/null <<'EOF2'
+#!/bin/bash
+# 34OS notice watcher: low-battery notice and live-USB warnings.
+export DISPLAY="${DISPLAY:-:0}"
+notify() { [ -x /usr/bin/xmessage] && /usr/bin/xmessage -center "$1" &}
+
+LIVE=0
+/bin/grep -q "boot=live" /proc/cmdline 2>/dev/null && LIVE=1
+BOOTDEV=""
+if [ "$LIVE" = 1]; then
+for m in /lib/live/mount/medium /run/live/medium /cdrom; do
+if /usr/bin/mountpoint -q "$m" 2>/dev/null; then
+BOOTDEV=$(/usr/bin/findmnt -n -o SOURCE "$m" 2>/dev/null)
+[ -n "$BOOTDEV"] && break
+fi
+done
+notify "34OSはUSBメモリから起動しています
+終了するまで、USBメモリを絶対に抜かないでください。途中で抜くとシステムが停止したり、USBメモリが壊れたりすることがあります"
+fi
+
+warned20=0
+warned10=0
+usb_warned=0
+while true; do
+for cap in /sys/class/power_supply/BAT*/capacity; do
+[ -r "$cap"] || continue
+lvl=$(/bin/cat "$cap" 2>/dev/null)
+case "$lvl" in ''|*[!0-9]*) continue;; esac
+st=$(/bin/cat "$(/usr/bin/dirname "$cap")/status" 2>/dev/null)
+if [ "$st" = "Charging"] || [ "$st" = "Full"]; then
+warned20=0
+warned10=0
+continue
+fi
+if [ "$lvl" -le 10] && [ "$warned10" = 0]; then
+notify "バッテリー残量が少なくなっています
+このまま使い続けると突然電源が落ちて、作業中のデータが消えることがあります。早めに充電してください
+作業中のデータは、USBメモリかパソコン本体のディスクに保存してください"
+warned10=1
+warned20=1
+elif [ "$lvl" -le 20] && [ "$warned20" = 0]; then
+notify "バッテリー残量が少なくなっています
+このまま使い続けると突然電源が落ちて、作業中のデータが消えることがあります。早めに充電してください
+作業中のデータは、USBメモリかパソコン本体のディスクに保存してください"
+warned20=1
+fi
+done
+if [ "$LIVE" = 1] && [ -n "$BOOTDEV"] && [ "$usb_warned" = 0] && [! -b "$BOOTDEV"]; then
+notify "USBメモリとの接続が切れました
+すぐに差し直してください。そのままにするとシステムが停止することがあります"
+usb_warned=1
+fi
+/bin/sleep 15
+done
+EOF2
+sudo chmod +x "$ROOTFS/usr/local/bin/34os-notice-watch"
+
+
 # Fluxbox menu generator: Japanese menu; the wallpaper submenu is rebuilt
 # from the wallpaper folders on every X start, so wallpapers a user drops
 # into ~/Pictures show up automatically.
@@ -763,6 +822,7 @@ export XMODIFIERS=@im=fcitx
 /usr/bin/volumeicon &
 /usr/bin/cbatticon &
 /usr/bin/pcmanfm --desktop &
+/usr/local/bin/34os-notice-watch &
 # 34OS v2.1c: Fluxbox is the standard session. Astro (34os-wm) is
 # bundled for testing: run "touch ~/.34os-astro" and gogui to try it;
 # remove the flag file to return to Fluxbox.
