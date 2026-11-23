@@ -1,11 +1,11 @@
-name: build-v2.1b
+name: build-v2.1c
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "build-v2.1b-ci.sh"
-      - ".github/workflows/build-v2.1b.yml"
+      - "build-v2.1c-ci.sh"
+      - ".github/workflows/build-v2.1c.yml"
 
 jobs:
   build:
@@ -14,12 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build 34OS v2.1b ISO
-        run: bash build-v2.1b-ci.sh
+      - name: Build 34OS v2.1c ISO
+        run: bash build-v2.1c-ci.sh
 
       - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
-          name: 34os-v2.1b-iso
-          path: 34os-v2.1b.iso
+          name: 34os-v2.1c-iso
+          path: 34os-v2.1c.iso
           if-no-files-found: error
