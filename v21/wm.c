@@ -701,6 +701,24 @@ static Bool prop_has_atom(Window w, Atom prop, Atom target)
     return found;
 }
 
+/* True when the window carries an _XEMBED_INFO property. Such a
+ * window is a tray icon waiting to be embedded; it must never be
+ * managed as a client, no matter how it shows up. */
+static Bool has_xembed_info(Window w)
+{
+    Atom actual;
+    int format;
+    unsigned long nitems, after;
+    unsigned char *data = NULL;
+    Bool present = False;
+    if (XGetWindowProperty(dpy, w, xa_xembed_info, 0, 0, False,
+                           AnyPropertyType, &actual, &format, &nitems,
+                           &after, &data) == Success && actual != None)
+        present = True;
+    if (data) XFree(data);
+    return present;
+}
+
 /* ------------------------------------------------------------------ */
 /* Desktop windows (_NET_WM_WINDOW_TYPE_DESKTOP)                       */
 /*                                                                     */
@@ -770,6 +788,14 @@ static void manage(Window w)
     if (find_client(w)) return;
     if (!XGetWindowAttributes(dpy, w, &attr)) return;
     if (attr.override_redirect) return;
+
+    /* Tray icons are not clients. Applets create their icon window
+     * (with _XEMBED_INFO) before any tray exists and keep it
+     * unmapped; it becomes visible only through tray_dock() once
+     * its SYSTEM_TRAY_REQUEST_DOCK arrives. Framing it here would
+     * pin a stray task button to the panel forever, because
+     * tray_dock() refuses windows that are already clients. */
+    if (has_xembed_info(w)) return;
 
     /* Desktop windows (PCManFM's icon layer) get no frame at all. */
     if (prop_has_atom(w, xa_net_wm_window_type,
@@ -1076,8 +1102,15 @@ static void tray_dock(Window icon)
 {
     TrayIcon *t;
     XEvent ev;
-    if (icon == None || find_tray_icon(icon) || find_client(icon))
+    Client *cl;
+    if (icon == None || find_tray_icon(icon))
         return;
+    /* A dock request always wins over client state: if the window
+     * was somehow adopted as a client before it could dock (e.g.
+     * it was mapped while no tray owned the selection), hand it
+     * back to the root first and then embed it properly. */
+    cl = find_client(icon);
+    if (cl) unmanage(cl, True);
     t = calloc(1, sizeof *t);
     t->win = icon;
     t->lx = -1;
@@ -2293,12 +2326,24 @@ int main(void)
     refresh_indicators(True);
     draw_panel();
 
-    /* Adopt windows that were already mapped. */
+    /* Adopt windows that were already mapped. Only viewable
+     * windows qualify: the applets in .xinitrc start BEFORE this
+     * WM and park their tray icons and helper windows on the root
+     * in withdrawn (unmapped) state. Adopting those would frame
+     * and forcibly map windows that must stay invisible, which is
+     * exactly what turned the volumeicon / cbatticon / pcmanfm
+     * helper windows into labelled task buttons on real hardware.
+     * A withdrawn window that wants to appear later sends a
+     * MapRequest and is managed at that point. */
     kids = NULL;
     nkids = 0;
     if (XQueryTree(dpy, root, &tree_root, &tree_parent, &kids, &nkids)) {
-        for (i = 0; i < nkids; i++)
-            manage(kids[i]);
+        for (i = 0; i < nkids; i++) {
+            XWindowAttributes attr;
+            if (XGetWindowAttributes(dpy, kids[i], &attr)
+                && attr.map_state == IsViewable)
+                manage(kids[i]);
+        }
         if (kids) XFree(kids);
     }
     draw_panel();
