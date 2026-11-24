@@ -53,9 +53,9 @@ mkdir / rm / mv / cp / grep ...
 
 ## ステータス
 
-開発中。現在の最新版は **v2.0.6b**：標準セッションは Fluxbox で、独自 UI「Astro」は同梱して試験中（`~/.34os-astro` フラグで起動）。v2.1 の実機テストで Astro にカーソルが表示されない等の問題が見つかったため、いったん Fluxbox 標準に戻した。Astro が標準セッションになる版が、初の製品名付きリリース「34OS Hachiroku-Rail TopNumber」になる。
+開発中。現在の最新版は **v2.1d**（プレビュー版。GitHub Releases で Latest として公開中）：標準セッションは Fluxbox で、独自 UI「Astro」は同梱して試験中（`~/.34os-astro` フラグで起動）。2.1x 系統は実機テストを繰り返して仕上げており、バグのなくなった最終の 2.1x ビルドをそのまま、初の製品名付きリリース **v2.2「TopNumber」**（34OS Hachiroku-Rail TopNumber）として **2026年12月25日** に正式リリースする予定。
 
-これまでの経緯：v1 が dynabook（初代 Core i5）で実機起動に成功。v1.1 は完成し、QEMU 検証オールクリア（コンソールの日本語表示・日本語キー配列・man 修正など）。v1.2 でインストーラ `install34` を搭載し、ライブ起動から HDD/SSD へのインストール（全消し／デュアルブート）が可能に。v2 で GUI パックを実装。v2.0.5 はスリム化で削りすぎたカーネルドライバの復旧版、v2.0.6 はその実機テストで見つかった問題（ネットワークポリシー・DNS・ファイルマネージャ）の修正版で、dynabook 実機テストでは表示・画質・Firefox・ネットワーク権限が正常動作を確認（残課題：ホットスポットの SSID が他端末から見えない、音声調整の導線、Firefox のホームページ初期表示）。v2.1（Astro 標準版）は実機テストの結果を受けて延期し、Fluxbox 標準＋Astro 同梱の v2.0.6b を先行させた。
+これまでの経緯：v1 が dynabook（初代 Core i5）で実機起動に成功。v1.1 は完成し、QEMU 検証オールクリア（コンソールの日本語表示・日本語キー配列・man 修正など）。v1.2 でインストーラ `install34` を搭載し、ライブ起動から HDD/SSD へのインストール（全消し／デュアルブート）が可能に。v2 で GUI パックを実装。v2.0.5 はスリム化で削りすぎたカーネルドライバの復旧版、v2.0.6 はその実機テストで見つかった問題（ネットワークポリシー・DNS・ファイルマネージャ）の修正版で、dynabook 実機テストでは表示・画質・Firefox・ネットワーク権限が正常動作を確認（残課題：ホットスポットの SSID が他端末から見えない、音声調整の導線、Firefox のホームページ初期表示）。v2.1（Astro 標準版）は実機テストの結果を受けて延期し、Fluxbox 標準＋Astro 同梱の v2.0.6b を先行させた。その後も 2.1x 系統で開発を続け、v2.1b（wpasupplicant と rfkill の同梱、ライブユーザーの audio グループ追加、Astro のトレイとデスクトップ処理）、v2.1c（dnsmasq の追加、Astro の内蔵パネル表示、起動メディアが見つからない場合の Recovery 画面）、v2.1d（通知ウォッチャーの修正、USB メディアを取り外した際の黒い停止画面、Astro のデスクトップアイコン列）を出している。
 
 ## バージョン表記について
 
@@ -71,17 +71,18 @@ mkdir / rm / mv / cp / grep ...
 - **v2.0.5**: スリム化で削除しすぎたカーネルドライバ（GPU・ネットワーク・サウンド等）を復旧
 - **v2.0.6**: 実機テストで判明した問題の修正（ライブユーザーのグループ所属、DNS フォールバック、PCManFM の実行確認ダイアログ）
 - **v2.0.6b**: v2.1 実機テストで見つかった Astro の問題（カーソル未表示など）を受け、標準セッションを Fluxbox に戻した安定版。Astro はカーソル修正済みのものを同梱し、フラグファイルで試せる
-- **v2.1（延期）**: 独自 UI「Astro」が標準セッションになる版。製品名「34OS Hachiroku-Rail TopNumber」（略称 34OS H-TNum）。Astro の完成度が上がってから出す
+- **v2.1b / v2.1c / v2.1d**: 2.1x の修正差分系列。Astro の改善（トレイ、デスクトップアイコン、内蔵パネル表示）、ホットスポット用コンポーネント（wpasupplicant、dnsmasq）、Recovery 画面と黒い停止画面
+- **v2.2「TopNumber」（2026年12月25日予定）**: 独自 UI「Astro」が標準セッションになる版。製品名「34OS Hachiroku-Rail TopNumber」（略称 34OS H-TNum）。2.1x の最終ビルドをそのまま v2.2 とする
 - **ライト化（予定）**: ISO サイズを 550〜600MB へ（ファームウェア／ドライバ分類の見直し。ドライバ網羅は維持）
 - その先: Secure Boot 対応（Ubuntu の署名済みブートチェーン流用を検討）、自宅サーバーへのインストール、DWService でのリモート運用
 
 ## ビルド
 
 ```bash
-./build-v2.0.6b.sh
+./build-v2.1d.sh
 ```
 
-CI 版は `build-v2.0.6b-ci.sh`（ワークフロー: `.github/workflows/build-v2.0.6b.yml`）。GitHub Actions で自動ビルドされ、ISO は Artifacts（名前: `34os-v2.0.6b-iso`）からダウンロードできる（ワークフローの `path:` は最新の ISO 名に合わせること）。CLI 版は `build-v1.2.sh` / `build-v1.2-ci.sh`。
+CI 版は `build-v2.1d-ci.sh`（ワークフロー: `.github/workflows/build-v2.1d.yml`）。GitHub Actions で自動ビルドされ、ISO は Artifacts（名前: `34os-v2.1d-iso`）からダウンロードできる（ワークフローの `path:` は最新の ISO 名に合わせること）。CLI 版は `build-v1.2.sh` / `build-v1.2-ci.sh`。
 
 Ubuntu 24.04 上で debootstrap / squashfs-tools / grub / xorriso を使って ISO を生成する。
 
