@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>34OS — an ultra-lightweight Linux distribution</title>
+<meta name="description" content="34OS is an ultra-lightweight Linux distribution based on Ubuntu 24.04, built for old PCs. Current preview: v2.1d. v2.2 “TopNumber” arrives December 25, 2026.">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background-color: #272b2e;
+    color: #eef0f2;
+    font-family: "BIZ UDGothic", "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
+    line-height: 1.8;
+    padding: 28px clamp(20px, 5vw, 64px) 56px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 48px;
+  }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: .35em; }
+  .brand a { color: #eef0f2; text-decoration: none; }
+  .brand-sub { font-size: 11px; letter-spacing: .3em; color: #9aa3ab; }
+  main { max-width: 880px; }
+  h1 {
+    font-size: clamp(26px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.4;
+    margin-bottom: 14px;
+  }
+  .tagline { color: #aeb6bd; font-size: 15px; margin-bottom: 44px; }
+  h2 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    border-left: 4px solid #e6c87a;
+    padding-left: 12px;
+    margin: 40px 0 14px;
+  }
+  p, li { font-size: 15px; }
+  ul { padding-left: 1.4em; }
+  table {
+    border-collapse: collapse;
+    margin: 10px 0 6px;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid #565e64;
+    padding: 7px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { color: #e6c87a; font-weight: 700; white-space: nowrap; }
+  code {
+    font-family: "DejaVu Sans Mono", monospace;
+    background-color: #1e2124;
+    padding: 1px 6px;
+    font-size: 13px;
+  }
+  a { color: #e6c87a; }
+  .note {
+    border: 1px solid #565e64;
+    padding: 14px 18px;
+    margin-top: 16px;
+    font-size: 14px;
+  }
+  footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid #565e64;
+    color: #9aa3ab;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand"><a href="index.html">34OS</a></div>
+    <div class="brand-sub">HACHIROKU-RAIL</div>
+  </header>
+  <main>
+    <h1>34OS</h1>
+    <p class="tagline">It's very hyper ultra super mega light-weight OS — an ultra-lightweight Linux distribution based on Ubuntu 24.04, built to run comfortably on old, low-spec PCs.</p>
+
+    <h2>WHAT IS 34OS?</h2>
+    <p>34OS is a personal Linux distribution that aims to be lighter than Puppy Linux while keeping the everyday command-line feel of Ubuntu — GNU coreutils, bash and apt. The live ISO is about 750 MB and boots from USB. The weight is saved not by removing commands, but by trimming locales, documentation and firmware, and compressing the file system with SquashFS. It has been tested on real hardware as old as a first-generation Core i5 laptop (dynabook).</p>
+    <ul>
+      <li>Base: Ubuntu 24.04 LTS (minimal debootstrap)</li>
+      <li>Shell: bash / Package management: apt</li>
+      <li>GUI: Xorg + Fluxbox (standard session), Firefox (official Mozilla .deb — no snap), PCManFM, sakura terminal</li>
+      <li>Installer: <code>install34</code> installs from the live session to HDD/SSD — full wipe or dual boot, UEFI and BIOS</li>
+      <li>Boot media: Rufus (DD mode) or Ventoy. Secure Boot must be disabled, as the bootloader is unsigned</li>
+      <li>Live session login: user <code>user</code> / password <code>live</code></li>
+    </ul>
+
+    <h2>CUSTOM COMMANDS</h2>
+    <table>
+      <tr><th><code>gogui</code></th><td>Start the GUI (Fluxbox, or Astro if the <code>~/.34os-astro</code> flag file exists)</td></tr>
+      <tr><th><code>gocli</code></th><td>Stop the GUI and return to the CLI</td></tr>
+      <tr><th><code>browser</code></th><td>Open the browser (Firefox)</td></tr>
+      <tr><th><code>img</code></th><td>Display an image (feh)</td></tr>
+      <tr><th><code>play</code></th><td>Play a video (mpv)</td></tr>
+      <tr><th><code>help</code></th><td>List the available commands with explanations</td></tr>
+      <tr><th><code>install34</code></th><td>Install to HDD/SSD from the live session (wipe / dual boot)</td></tr>
+    </table>
+    <p>Everyday commands are a curated set shown up front (<code>cd / ls / cat / man / nano / sudo / apt / help …</code>). Commands used internally by the system are not deleted — that would break booting and apt — they are simply kept out of the default PATH.</p>
+
+    <h2>ASTRO</h2>
+    <p>Astro is 34OS's own user interface under development: a custom X11 window manager (<code>34os-wm</code>) written in C, which also provides the panel, the menu and the desktop in a single program. Its look is flat white line art on charcoal — the project's own wallpapers use the same style. In the current preview builds Astro ships alongside Fluxbox and can be tried by creating a <code>~/.34os-astro</code> flag file. The release in which Astro becomes the standard session is v2.2 “TopNumber”.</p>
+
+    <h2>STATUS</h2>
+    <p>Under active development. The current release is <strong>v2.1d</strong> (preview), available from GitHub Releases. The 2.1x series is being hardened on real hardware; the final, bug-free 2.1x build will be promoted as-is to the first branded release, <strong>v2.2 “TopNumber”</strong> (34OS Hachiroku-Rail TopNumber), scheduled for <strong>December 25, 2026</strong>.</p>
+    <p>About version letters: a trailing letter (b, c, d…) marks a fix release of the same version, not a new version — v2.1 → v2.1b → v2.1c → v2.1d are all revisions of v2.1. Only a change in the numbers is a new version.</p>
+
+    <h2>DOWNLOAD</h2>
+    <p>ISO images are published on <a href="https://github.com/nekomimi0128/34OS/releases">GitHub Releases</a>. Source code and build scripts live in the same repository: <a href="https://github.com/nekomimi0128/34OS">github.com/nekomimi0128/34OS</a>.</p>
+
+    <h2>PLEASE NOTE</h2>
+    <div class="note">
+      <p>34OS is <strong>Japanese-locale only</strong> (ja_JP.UTF-8). There is no English locale — by design, English support is left to volunteers. The interface, documentation and this project's day-to-day development are in Japanese. Bug reports and real-hardware test reports are welcome via GitHub Issues.</p>
+    </div>
+
+    <h2>LINKS</h2>
+    <ul>
+      <li>GitHub: <a href="https://github.com/nekomimi0128/34OS">github.com/nekomimi0128/34OS</a></li>
+      <li>Downloads: <a href="https://github.com/nekomimi0128/34OS/releases">GitHub Releases</a></li>
+      <li>Wiki: <a href="https://github.com/nekomimi0128/34OS/wiki">github.com/nekomimi0128/34OS/wiki</a> (Japanese)</li>
+      <li>YouTube: <a href="https://www.youtube.com/@34OS-Official">@34OS-Official</a> — the v2.2 “TopNumber” teaser PV is <a href="https://www.youtube.com/watch?v=q21xNTwIuQs">on YouTube</a></li>
+      <li>Japanese top page: <a href="index.html">34OS (Japanese)</a></li>
+    </ul>
+
+    <h2>DEVELOPMENT &amp; LICENSE</h2>
+    <p>34OS is a personal project. All specification and design decisions are made by the author (Nekomimi); the implementation is carried out by Muse, an AI assistant. License: WTFPL (copyleft variant) — if you distribute a modified version, publish it under the same terms. ©MximizR/Nekomimi</p>
+  </main>
+  <footer>
+    34OS Hachiroku-Rail — v2.2 “TopNumber”, December 25, 2026
+  </footer>
+</body>
+</html>
