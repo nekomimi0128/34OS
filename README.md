@@ -1,5 +1,7 @@
 # 34OS
 
+[English](README.en.md)
+
 > It's very hyper ultra super mega light-weight OS
 
 バカ軽いOSを目指して作っている、個人専用の Linux ディストリビューション（になる予定のもの）。
