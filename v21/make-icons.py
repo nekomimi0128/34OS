@@ -7,7 +7,7 @@ drawn at 192x192 so the WM's Imlib2 downscale to 48x48 stays
 smooth. No icon theme is used; every motif is drawn here.
 
 Motifs (same apps as the start menu):
-    firefox.png   circle + flame          (Firefox)
+    firefox.png   wireframe globe, 🌐 style (Firefox)
     files.png     folder                  (書庫 / PCManFM)
     terminal.png  screen with ">_"        (ターミナル / sakura)
     writer.png    document with lines     (タイプライター / AbiWord)
@@ -43,41 +43,18 @@ def save(img, name):
 
 def firefox():
     img, d = canvas()
-    # Globe: outer circle.
+    # Wireframe globe in the style of the 🌐 emoji (user's pick):
+    # outer circle, one meridian ellipse, a straight equator and
+    # two parallels bowed away from the equator. Instantly reads
+    # as "web browser" at 48px, no mascot required.
     d.ellipse([18, 18, 174, 174], outline=WHITE, width=W)
-    # Flame: a teardrop outline rising from the bottom of the
-    # circle, drawn as a closed polyline through parametric points
-    # (right side bulges out, left side curls in, tip at the top).
-    pts = []
-    for i in range(41):
-        t = i / 40.0                    # 0 at the tip, 1 back at tip
-        ang = math.pi * t               # half-turn for the body
-        # teardrop: width grows then shrinks, centre drifts down
-        r = 34 * math.sin(ang) ** 0.8
-        y = 52 + 96 * t
-        x = 96 + r
-        pts.append((x, y))
-    for i in range(40, -1, -1):
-        t = i / 40.0
-        ang = math.pi * t
-        r = 34 * math.sin(ang) ** 0.8
-        y = 52 + 96 * t
-        x = 96 - r * 0.82 - 6 * math.sin(ang * 2)
-        pts.append((x, y))
-    d.line(pts, fill=WHITE, width=W2, joint="curve")
-    # Inner flame tongue.
-    pts = []
-    for i in range(31):
-        t = i / 30.0
-        ang = math.pi * t
-        r = 15 * math.sin(ang) ** 0.9
-        pts.append((96 + r, 96 + 52 * t))
-    for i in range(30, -1, -1):
-        t = i / 30.0
-        ang = math.pi * t
-        r = 15 * math.sin(ang) ** 0.9
-        pts.append((96 - r, 96 + 52 * t))
-    d.line(pts, fill=WHITE, width=W2, joint="curve")
+    # Meridian.
+    d.ellipse([62, 18, 130, 174], outline=WHITE, width=W2)
+    # Equator.
+    d.line([18, 96, 174, 96], fill=WHITE, width=W2)
+    # Parallels at dy = -34 / +34 (chord half-width 69, sag 14).
+    d.arc([27, 48, 165, 76], start=180, end=360, fill=WHITE, width=W2)
+    d.arc([27, 116, 165, 144], start=0, end=180, fill=WHITE, width=W2)
     return img
 
 
