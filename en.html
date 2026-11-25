@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>34OS — an ultra-lightweight Linux distribution</title>
-<meta name="description" content="34OS is an ultra-lightweight Linux distribution based on Ubuntu 24.04, built for old PCs. Current preview: v2.1d. v2.2 “TopNumber” arrives December 25, 2026.">
+<meta name="description" content="34OS is an ultra-lightweight Linux distribution based on Ubuntu 24.04, built for old PCs. Current preview: v2.1e. v2.2 “TopNumber” arrives December 25, 2026.">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -92,7 +92,7 @@
       <li>Shell: bash / Package management: apt</li>
       <li>GUI: Xorg + Fluxbox (standard session), Firefox (official Mozilla .deb — no snap), PCManFM, sakura terminal</li>
       <li>Installer: <code>install34</code> installs from the live session to HDD/SSD — full wipe or dual boot, UEFI and BIOS</li>
-      <li>Boot media: Rufus (DD mode) or Ventoy. Secure Boot must be disabled, as the bootloader is unsigned</li>
+      <li>Boot media: Rufus (DD mode) or Ventoy. Secure Boot is supported (signed shim and GRUB), so it can stay enabled</li>
       <li>Live session login: user <code>user</code> / password <code>live</code></li>
     </ul>
 
@@ -112,8 +112,8 @@
     <p>Astro is 34OS's own user interface under development: a custom X11 window manager (<code>34os-wm</code>) written in C, which also provides the panel, the menu and the desktop in a single program. Its look is flat white line art on charcoal — the project's own wallpapers use the same style. In the current preview builds Astro ships alongside Fluxbox and can be tried by creating a <code>~/.34os-astro</code> flag file. The release in which Astro becomes the standard session is v2.2 “TopNumber”.</p>
 
     <h2>STATUS</h2>
-    <p>Under active development. The current release is <strong>v2.1d</strong> (preview), available from GitHub Releases. The 2.1x series is being hardened on real hardware; the final, bug-free 2.1x build will be promoted as-is to the first branded release, <strong>v2.2 “TopNumber”</strong> (34OS Hachiroku-Rail TopNumber), scheduled for <strong>December 25, 2026</strong>.</p>
-    <p>About version letters: a trailing letter (b, c, d…) marks a fix release of the same version, not a new version — v2.1 → v2.1b → v2.1c → v2.1d are all revisions of v2.1. Only a change in the numbers is a new version.</p>
+    <p>Under active development. The latest development build is <strong>v2.1e</strong> (preview, with Secure Boot support); the Latest release on GitHub Releases is v2.1d. The 2.1x series is being hardened on real hardware; the final, bug-free 2.1x build will be promoted as-is to the first branded release, <strong>v2.2 “TopNumber”</strong> (34OS Hachiroku-Rail TopNumber), scheduled for <strong>December 25, 2026</strong>.</p>
+    <p>About version letters: a trailing letter (b, c, d…) marks a fix release of the same version, not a new version — v2.1 → v2.1b → v2.1c → v2.1d → v2.1e are all revisions of v2.1. Only a change in the numbers is a new version.</p>
 
     <h2>DOWNLOAD</h2>
     <p>ISO images are published on <a href="https://github.com/nekomimi0128/34OS/releases">GitHub Releases</a>. Source code and build scripts live in the same repository: <a href="https://github.com/nekomimi0128/34OS">github.com/nekomimi0128/34OS</a>.</p>
