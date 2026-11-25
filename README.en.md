@@ -52,9 +52,21 @@ Custom commands:
 
 ## Status
 
-Under development. The latest development build is **v2.1e** (preview; adds Secure Boot support. The Latest on GitHub Releases is v2.1d): the standard session is Fluxbox, and the custom UI "Astro" is bundled for testing (started via the `~/.34os-astro` flag). The 2.1x series is being hardened through repeated real-hardware tests, and the final, bug-free 2.1x build will be promoted as-is to the first branded release, **v2.2 "TopNumber"** (34OS Hachiroku-Rail TopNumber), scheduled for **December 25, 2026**.
+Under development. The latest development build is **v2.1e** (preview; adds Secure Boot support; it is the Latest on GitHub Releases). The standard session is Fluxbox, and the custom UI "Astro" is bundled for testing (started via the `~/.34os-astro` flag). The 2.1x series is being hardened through repeated real-hardware tests, and the final, bug-free 2.1x build will be promoted as-is to the first branded release, **v2.2 "TopNumber"** (34OS Hachiroku-Rail TopNumber), scheduled for **December 25, 2026**.
 
-History so far: v1 booted successfully on real hardware (a dynabook with a first-generation Core i5). v1.1 was completed and passed the full QEMU verification (Japanese console display, Japanese keyboard layout, man fixes, and more). v1.2 added the `install34` installer, making installation from the live session to HDD/SSD possible (full wipe / dual boot). v2 implemented the GUI pack. v2.0.5 restored kernel drivers that had been cut too aggressively during slimming; v2.0.6 fixed issues found in its real-hardware test (network policy, DNS, file manager), and on the dynabook the display, rendering quality, Firefox and network permissions were confirmed working. v2.1 (the Astro-standard edition) was postponed based on real-hardware test results, and v2.0.6b — Fluxbox standard with Astro bundled — was released first. After that, development continued in the 2.1x line: v2.1b (bundled wpasupplicant and rfkill, live user added to the audio group, tray and desktop handling in Astro), v2.1c (dnsmasq added, Astro's built-in panel indicators, a Recovery screen shown when the boot medium is missing), v2.1d (fixed the notification watcher, a black stop screen shown when the USB medium is removed, and Astro's desktop icon column), and v2.1e (Secure Boot support — a boot chain of the Microsoft-signed shim and signed GRUB, so the system boots with Secure Boot left enabled).
+History so far:
+
+- **v1**: booted successfully on real hardware (a dynabook with a first-generation Core i5)
+- **v1.1**: completed; passed the full QEMU verification (Japanese console display, Japanese keyboard layout, man fixes, and more)
+- **v1.2**: added the `install34` installer, making installation from the live session to HDD/SSD possible (full wipe / dual boot)
+- **v2**: implemented the GUI pack
+- **v2.0.5**: restored kernel drivers that had been cut too aggressively during slimming
+- **v2.0.6**: fixed issues found in v2.0.5's real-hardware test (network policy, DNS, file manager); on the dynabook, the display, rendering quality, Firefox and network permissions were confirmed working
+- **v2.1 (the Astro-standard edition)**: postponed based on real-hardware test results; v2.0.6b — Fluxbox standard with Astro bundled — was released first
+- **v2.1b**: bundled wpasupplicant and rfkill, live user added to the audio group, tray and desktop handling in Astro
+- **v2.1c**: dnsmasq added, Astro's built-in panel indicators, a Recovery screen shown when the boot medium is missing
+- **v2.1d**: fixed the notification watcher, a black stop screen shown when the USB medium is removed, and Astro's desktop icon column
+- **v2.1e**: Secure Boot support — a boot chain of the Microsoft-signed shim and signed GRUB, so the system boots with Secure Boot left enabled
 
 ## About version notation
 
