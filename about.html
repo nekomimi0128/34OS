@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>34OS — 超軽量 Linux ディストリビューション</title>
+<meta name="description" content="34OS は Ubuntu 24.04 ベースの超軽量 Linux ディストリビューション。古い PC 向け。現在のプレビューは v2.1e、v2.2「TopNumber」は 2026年12月25日 リリース。">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background-color: #272b2e;
+    color: #eef0f2;
+    font-family: "BIZ UDGothic", "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
+    line-height: 1.8;
+    padding: 28px clamp(20px, 5vw, 64px) 56px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 48px;
+  }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: .35em; }
+  .brand a { color: #eef0f2; text-decoration: none; }
+  .brand-sub { font-size: 11px; letter-spacing: .3em; color: #9aa3ab; }
+  main { max-width: 880px; }
+  h1 {
+    font-size: clamp(26px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.4;
+    margin-bottom: 14px;
+  }
+  .tagline { color: #aeb6bd; font-size: 15px; margin-bottom: 44px; }
+  h2 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    border-left: 4px solid #e6c87a;
+    padding-left: 12px;
+    margin: 40px 0 14px;
+  }
+  p, li { font-size: 15px; }
+  ul { padding-left: 1.4em; }
+  table {
+    border-collapse: collapse;
+    margin: 10px 0 6px;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid #565e64;
+    padding: 7px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { color: #e6c87a; font-weight: 700; white-space: nowrap; }
+  code {
+    font-family: "DejaVu Sans Mono", monospace;
+    background-color: #1e2124;
+    padding: 1px 6px;
+    font-size: 13px;
+  }
+  a { color: #e6c87a; }
+  .note {
+    border: 1px solid #565e64;
+    padding: 14px 18px;
+    margin-top: 16px;
+    font-size: 14px;
+  }
+  footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid #565e64;
+    color: #9aa3ab;
+    font-size: 13px;
+  }
+  .lang-switch { font-size: 12px; letter-spacing: .3em; margin-bottom: 30px; }
+  .lang-switch a { color: #e6c87a; text-decoration: none; border-bottom: 1px solid #e6c87a; padding-bottom: 2px; }
+  .countdown {
+    margin-top: 10px;
+    font-size: 12px;
+    letter-spacing: .3em;
+    color: #9aa3ab;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand"><a href="index.html">34OS</a></div>
+    <div class="brand-sub">HACHIROKU-RAIL</div>
+  </header>
+  <p class="lang-switch"><a href="en.html">English</a></p>
+  <main>
+    <h1>34OS</h1>
+    <p class="tagline">It's very hyper ultra super mega light-weight OS — バカ軽いOSを目指して作っている、個人専用の Linux ディストリビューション。名前の由来は「サンヨン = 3・4」。</p>
+
+    <h2>リリースカウントダウン</h2>
+    <p>初の製品名付きリリース <strong>v2.2「TopNumber」</strong>（34OS Hachiroku-Rail TopNumber）は <strong>2026年12月25日 20:34</strong> リリース予定。</p>
+    <p class="countdown" id="countdown"></p>
+
+    <h2>34OSとは</h2>
+    <p>34OS は、<strong>Puppy Linux 以下の軽さ</strong>を目指しながら、<strong>コマンドの使い心地は Ubuntu と同じ</strong>（GNU coreutils + bash + apt）であることを狙った個人用 Linux ディストリビューション。使う人が使うものだけを表に出し、余計なものは裏に隠す方針。軽さの稼ぎ方はコマンドを削ることではなく、ロケール・ドキュメント・ファームウェアを削ぎ落として、ファイルシステムを SquashFS で圧縮すること。初代 Core i5 のノート PC（dynabook）など、古い実機でもテストしている。</p>
+    <ul>
+      <li>土台: Ubuntu 24.04 LTS（debootstrap 最小構成）</li>
+      <li>シェル: bash / パッケージ管理: apt</li>
+      <li>GUI: Xorg + Fluxbox（標準セッション）、Firefox（Mozilla公式 .deb — snap は使わない）、PCManFM、sakura ターミナル</li>
+      <li>日本語入力: fcitx5 + Mozc 標準搭載</li>
+      <li>インストーラ: <code>install34</code> でライブセッションから HDD/SSD へインストール — 全消し／デュアルブート、UEFI／BIOS 両対応</li>
+      <li>起動メディア: Rufus（DD モード）または Ventoy。v2.1e 以降は Secure Boot に対応しているため、有効にしたまま起動できる（Microsoft 署名済み shim と署名済み GRUB を使用）。v2.1d 以前では Secure Boot の無効化が必要</li>
+      <li>ライブセッションのログイン: ユーザー <code>user</code> / パスワード <code>live</code></li>
+    </ul>
+
+    <h2>独自コマンド</h2>
+    <table>
+      <tr><th><code>gogui</code></th><td>GUI（標準は Fluxbox、<code>~/.34os-astro</code> がある場合は Astro）を起動する</td></tr>
+      <tr><th><code>gocli</code></th><td>GUIを落としてCLIに戻る</td></tr>
+      <tr><th><code>browser</code></th><td>ブラウザを開く</td></tr>
+      <tr><th><code>img</code></th><td>画像を表示する（feh）</td></tr>
+      <tr><th><code>play</code></th><td>動画を再生する（mpv）</td></tr>
+      <tr><th><code>help</code></th><td>使えるコマンドの一覧と説明を出す</td></tr>
+      <tr><th><code>install34</code></th><td>ライブセッションから HDD/SSD へインストールする（全消し／デュアルブート）</td></tr>
+    </table>
+    <p>日常コマンドは厳選して表に出す方針（<code>cd / ls / cat / man / nano / history / sudo / apt / help …</code>）。システム内部が使うコマンドは消さない（消すと起動や apt が壊れるため）。「見せない」のは PATH の制御で実現する。</p>
+
+    <h2>ASTRO</h2>
+    <p>Astro は 34OS の独自 UI。自作の X11 ウィンドウマネージャ <code>34os-wm</code>（C 言語）が、パネル・メニュー・デスクトップまでを1つのプログラムで担う。見た目はチャコール地に白の線画で、プロジェクトの壁紙と同じ世界観。現在のプレビュー版では Fluxbox と同梱されており、<code>~/.34os-astro</code> フラグファイルを作ると試せる。Astro が標準セッションになるリリースが v2.2「TopNumber」。</p>
+
+    <h2>ステータス</h2>
+    <p>開発中。最新の開発版は <strong>v2.1e</strong>（プレビュー版。Secure Boot 対応。GitHub Releases の Latest）。標準セッションは Fluxbox で、独自 UI「Astro」は同梱して試験中。2.1x 系統は実機テストを繰り返して仕上げており、バグのなくなった最終の 2.1x ビルドをそのまま、初の製品名付きリリース <strong>v2.2「TopNumber」</strong>（34OS Hachiroku-Rail TopNumber）として <strong>2026年12月25日</strong> に正式リリースする予定。</p>
+    <p>バージョン表記について: 末尾のアルファベット（b, c, d…）は「同じバージョンの修正差分」を表す記号で、新しいバージョンではない。無印が初版（暗黙の a）で、修正のたびに b, c, d… と進む。たとえば v2.1 → v2.1b → v2.1c → v2.1d → v2.1e は、すべて v2.1 の修正差分である。数字が上がったときだけが新バージョンになる。</p>
+
+    <h2>ダウンロード</h2>
+    <p>ISO イメージは <a href="https://github.com/nekomimi0128/34OS/releases">GitHub Releases</a> で公開している。ソースコードとビルドスクリプトも同じリポジトリにある: <a href="https://github.com/nekomimi0128/34OS">github.com/nekomimi0128/34OS</a>。</p>
+
+    <h2>注意</h2>
+    <div class="note">
+      <p>34OS は<strong>日本語ロケールのみ</strong>（ja_JP.UTF-8）。英語ロケールは方針として有志に任せている。バグ報告や実機テストの報告は GitHub Issues で歓迎する。</p>
+    </div>
+
+    <h2>リンク</h2>
+    <ul>
+      <li>GitHub: <a href="https://github.com/nekomimi0128/34OS">github.com/nekomimi0128/34OS</a></li>
+      <li>ダウンロード: <a href="https://github.com/nekomimi0128/34OS/releases">GitHub Releases</a></li>
+      <li>Wiki: <a href="https://github.com/nekomimi0128/34OS/wiki">github.com/nekomimi0128/34OS/wiki</a></li>
+      <li>YouTube: <a href="https://www.youtube.com/@34OS-Official">@34OS-Official</a> — v2.2「TopNumber」ティザーPVは <a href="https://www.youtube.com/watch?v=q21xNTwIuQs">YouTube で公開中</a></li>
+      <li>トップページ: <a href="index.html">34OS</a></li>
+      <li>English: <a href="en.html">34OS (English)</a></li>
+    </ul>
+
+    <h2>開発とライセンス</h2>
+    <p>34OS は個人プロジェクト。仕様と設計の決定は作者（ねこみみ）が行い、実装は AI アシスタントの Muse が担当している。ライセンス: 34OS 本体は WTFPL（コピーレフト条項付き）。改変版を配布する場合は、同じ条件で公開すること。©MximizR/Nekomimi</p>
+  </main>
+  <footer>
+    34OS Hachiroku-Rail — v2.2「TopNumber」、2026年12月25日
+  </footer>
+<script>
+  // release countdown: v2.2 "TopNumber", 2026-12-25 20:34 JST
+  (function () {
+    var el = document.getElementById('countdown');
+    if (!el) return;
+    var target = new Date('2026-12-25T20:34:00+09:00').getTime();
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function tick() {
+      var diff = target - Date.now();
+      if (diff <= 0) { el.textContent = 'リリースされました'; return; }
+      var d = Math.floor(diff / 86400000);
+      var h = Math.floor(diff % 86400000 / 3600000);
+      var m = Math.floor(diff % 3600000 / 60000);
+      var s = Math.floor(diff % 60000 / 1000);
+      el.textContent = 'あと' + d + '日 ' + pad(h) + ':' + pad(m) + ':' + pad(s);
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+</body>
+</html>

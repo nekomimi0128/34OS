@@ -57,6 +57,13 @@
     letter-spacing: .5em;
     color: #eceff1;
   }
+  .countdown {
+    margin-top: 10px;
+    font-size: 12px;
+    letter-spacing: .3em;
+    color: #9aa3ab;
+    font-variant-numeric: tabular-nums;
+  }
   .lang { margin-top: 22px; font-size: 12px; letter-spacing: .3em; }
   .lang a { color: #e6c87a; text-decoration: none; border-bottom: 1px solid #e6c87a; padding-bottom: 2px; }
 </style>
@@ -70,7 +77,8 @@
     <p class="teaser-line">1号機として、ふさわしい<span class="reel"><canvas id="reelCanvas" width="204" height="90"></canvas></span>を。</p>
     <p class="sub">34OS v2.2 — TopNumber</p>
     <p class="date">2026.12.25</p>
-    <p class="lang"><a href="en.html">English</a></p>
+    <p class="countdown" id="countdown"></p>
+    <p class="lang"><a href="about.html">説明</a> / <a href="en.html">English</a></p>
   </main>
 <script>
   // teaser reel: the slot shows no letterforms at all, only fast
@@ -107,6 +115,24 @@
       requestAnimationFrame(frame);
     }
     frame();
+  })();
+  // release countdown: v2.2 "TopNumber", 2026-12-25 20:34 JST
+  (function () {
+    var el = document.getElementById('countdown');
+    if (!el) return;
+    var target = new Date('2026-12-25T20:34:00+09:00').getTime();
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function tick() {
+      var diff = target - Date.now();
+      if (diff <= 0) { el.textContent = 'リリースされました'; return; }
+      var d = Math.floor(diff / 86400000);
+      var h = Math.floor(diff % 86400000 / 3600000);
+      var m = Math.floor(diff % 3600000 / 60000);
+      var s = Math.floor(diff % 60000 / 1000);
+      el.textContent = 'あと' + d + '日 ' + pad(h) + ':' + pad(m) + ':' + pad(s);
+    }
+    tick();
+    setInterval(tick, 1000);
   })();
 </script>
 </body>
