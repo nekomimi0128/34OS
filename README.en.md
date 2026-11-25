@@ -52,13 +52,13 @@ Custom commands:
 
 ## Status
 
-Under development. The current release is **v2.1d** (preview): the standard session is Fluxbox, and the custom UI "Astro" is bundled for testing (started via the `~/.34os-astro` flag). The 2.1x series is being hardened through repeated real-hardware tests, and the final, bug-free 2.1x build will be promoted as-is to the first branded release, **v2.2 "TopNumber"** (34OS Hachiroku-Rail TopNumber), scheduled for **December 25, 2026**.
+Under development. The latest development build is **v2.1e** (preview; adds Secure Boot support. The Latest on GitHub Releases is v2.1d): the standard session is Fluxbox, and the custom UI "Astro" is bundled for testing (started via the `~/.34os-astro` flag). The 2.1x series is being hardened through repeated real-hardware tests, and the final, bug-free 2.1x build will be promoted as-is to the first branded release, **v2.2 "TopNumber"** (34OS Hachiroku-Rail TopNumber), scheduled for **December 25, 2026**.
 
-History so far: v1 booted successfully on real hardware (a dynabook with a first-generation Core i5). v1.1 was completed and passed the full QEMU verification (Japanese console display, Japanese keyboard layout, man fixes, and more). v1.2 added the `install34` installer, making installation from the live session to HDD/SSD possible (full wipe / dual boot). v2 implemented the GUI pack. v2.0.5 restored kernel drivers that had been cut too aggressively during slimming; v2.0.6 fixed issues found in its real-hardware test (network policy, DNS, file manager), and on the dynabook the display, rendering quality, Firefox and network permissions were confirmed working. v2.1 (the Astro-standard edition) was postponed based on real-hardware test results, and v2.0.6b — Fluxbox standard with Astro bundled — was released first. After that, development continued in the 2.1x line: v2.1b (bundled wpasupplicant and rfkill, live user added to the audio group, tray and desktop handling in Astro), v2.1c (dnsmasq added, Astro's built-in panel indicators, a Recovery screen shown when the boot medium is missing), and v2.1d (fixed the notification watcher, a black stop screen shown when the USB medium is removed, and Astro's desktop icon column).
+History so far: v1 booted successfully on real hardware (a dynabook with a first-generation Core i5). v1.1 was completed and passed the full QEMU verification (Japanese console display, Japanese keyboard layout, man fixes, and more). v1.2 added the `install34` installer, making installation from the live session to HDD/SSD possible (full wipe / dual boot). v2 implemented the GUI pack. v2.0.5 restored kernel drivers that had been cut too aggressively during slimming; v2.0.6 fixed issues found in its real-hardware test (network policy, DNS, file manager), and on the dynabook the display, rendering quality, Firefox and network permissions were confirmed working. v2.1 (the Astro-standard edition) was postponed based on real-hardware test results, and v2.0.6b — Fluxbox standard with Astro bundled — was released first. After that, development continued in the 2.1x line: v2.1b (bundled wpasupplicant and rfkill, live user added to the audio group, tray and desktop handling in Astro), v2.1c (dnsmasq added, Astro's built-in panel indicators, a Recovery screen shown when the boot medium is missing), v2.1d (fixed the notification watcher, a black stop screen shown when the USB medium is removed, and Astro's desktop icon column), and v2.1e (Secure Boot support — a boot chain of the Microsoft-signed shim and signed GRUB, so the system boots with Secure Boot left enabled).
 
 ## About version notation
 
-A trailing letter (b, c, d…) marks a **fix release of the same version**; it is not a new version. The unmarked release is the first one (an implicit "a"), and fixes advance the letter: b, c, d…. For example, v2.1 → v2.1b → v2.1c → v2.1d are all revisions of v2.1. Only when the numbers go up is it a new version.
+A trailing letter (b, c, d…) marks a **fix release of the same version**; it is not a new version. The unmarked release is the first one (an implicit "a"), and fixes advance the letter: b, c, d…. For example, v2.1 → v2.1b → v2.1c → v2.1d → v2.1e are all revisions of v2.1. Only when the numbers go up is it a new version.
 
 ## Roadmap
 
@@ -70,25 +70,25 @@ A trailing letter (b, c, d…) marks a **fix release of the same version**; it i
 - **v2.0.5**: Restored kernel drivers (GPU, network, sound, etc.) that slimming had removed too aggressively
 - **v2.0.6**: Fixes for issues found in real-hardware testing (live user's group membership, DNS fallback, PCManFM run confirmation dialog)
 - **v2.0.6b**: Stable release that returned the standard session to Fluxbox after Astro issues found in the v2.1 real-hardware test (such as the missing cursor). Astro, with the cursor fixed, is bundled and can be tried via a flag file
-- **v2.1b / v2.1c / v2.1d**: The 2.1x fix series — Astro improvements (tray, desktop icons, built-in panel indicators), hotspot support components (wpasupplicant, dnsmasq), the Recovery screen and the black stop screen
+- **v2.1b / v2.1c / v2.1d / v2.1e**: The 2.1x fix series — Astro improvements (tray, desktop icons, built-in panel indicators), hotspot support components (wpasupplicant, dnsmasq), the Recovery screen, the black stop screen, and Secure Boot support (v2.1e)
 - **v2.2 "TopNumber" (scheduled: December 25, 2026)**: The release in which the custom UI "Astro" becomes the standard session. Product name "34OS Hachiroku-Rail TopNumber" (short form: 34OS H-TNum). The final 2.1x build will be promoted to v2.2 as-is
 - **Lightening (planned)**: ISO size down to 550–600 MB (reviewing firmware/driver classification, while keeping driver coverage)
-- Further ahead: Secure Boot support (considering reusing Ubuntu's signed boot chain), installation on a home server, remote operation via DWService
+- Further ahead: installation on a home server, remote operation via DWService
 
 ## Building
 
 ```bash
-./build-v2.1d.sh
+./build-v2.1e.sh
 ```
 
-The CI variant is `build-v2.1d-ci.sh` (workflow: `.github/workflows/build-v2.1d.yml`). Builds run automatically on GitHub Actions, and the ISO can be downloaded from Artifacts (name: `34os-v2.1d-iso`) — note that the workflow's `path:` must match the latest ISO name. The CLI edition uses `build-v1.2.sh` / `build-v1.2-ci.sh`.
+The CI variant is `build-v2.1e-ci.sh` (workflow: `.github/workflows/build-v2.1e.yml`). Builds run automatically on GitHub Actions, and the ISO can be downloaded from Artifacts (name: `34os-v2.1e-iso`) — note that the workflow's `path:` must match the latest ISO name. The CLI edition uses `build-v1.2.sh` / `build-v1.2-ci.sh`.
 
 The ISO is generated on Ubuntu 24.04 using debootstrap / squashfs-tools / grub / xorriso.
 
 ## Boot media
 
 Write the ISO to USB with Rufus in DD mode, or with Ventoy (just copy the ISO onto a Ventoy-installed USB stick).
-Note: on relatively recent BIOS/UEFI systems with Secure Boot, Secure Boot must be disabled first (the 34OS bootloader is unsigned).
+Note: v2.1e and later support Secure Boot and boot with it left enabled (using the Microsoft-signed shim and signed GRUB). Versions up to v2.1d require Secure Boot to be disabled.
 
 ## Contributors welcome (PRs welcome)
 
